@@ -51,40 +51,40 @@ void check_for_error (T var, string msg) {
 }
 
 namespace sst {
-  // IB device name
-  const char *dev_name = NULL;
-  // local IB port to work with
-  int ib_port = 1;
-  // gid index to use
-  int gid_idx = -1;
+// IB device name
+const char *dev_name = NULL;
+// local IB port to work with
+int ib_port = 1;
+// gid index to use
+int gid_idx = -1;
 
-  /* structure of system resources */
-  struct global_resources {
-    // device attributes
-    struct ibv_device_attr  device_attr;
-    // IB port attributes
-    struct ibv_port_attr port_attr;
-    // device handle
-    struct ibv_context *ib_ctx;
-    // PD handle
-    struct ibv_pd *pd;
-    // CQ handle
-    struct ibv_cq *cq;
-  };
-  struct global_resources *g_res;
-  
-  /*
-   * initializes the resources. Registers write_addr and read_addr and connects queue pair
-   */
-  resources::resources(int r_index, char* write_addr, char* read_addr, int size_w, int size_r) {
+/* structure of system resources */
+struct global_resources {
+        // device attributes
+        struct ibv_device_attr device_attr;
+        // IB port attributes
+        struct ibv_port_attr port_attr;
+        // device handle
+        struct ibv_context *ib_ctx;
+        // PD handle
+        struct ibv_pd *pd;
+        // CQ handle
+        struct ibv_cq *cq;
+};
+struct global_resources *g_res;
+
+/*
+ * initializes the resources. Registers write_addr and read_addr and connects queue pair
+ */
+resources::resources(int r_index, char* write_addr, char* read_addr, int size_w, int size_r) {
     // set the remote index
     remote_index = r_index;
-  
+
     write_buf = write_addr;
-    check_for_error (write_buf, "Write address is NULL");
-  
+    check_for_error(write_buf, "Write address is NULL");
+
     read_buf = read_addr;
-    check_for_error (read_buf, "Read address is NULL");
+    check_for_error(read_buf, "Read address is NULL");
 
     // register the memory buffer
     int mr_flags = 0;
@@ -93,52 +93,52 @@ namespace sst {
     // register memory with the protection domain and the buffer
     write_mr = ibv_reg_mr(g_res->pd, write_buf, size_w, mr_flags);
     read_mr = ibv_reg_mr(g_res->pd, read_buf, size_r, mr_flags);
-    check_for_error (write_mr, "Could not register memory region : write_mr, error code is : " + errno);
-    check_for_error (read_mr, "Could not register memory region : read_mr, error code is : " + errno);
+    check_for_error(write_mr, "Could not register memory region : write_mr, error code is : " + errno);
+    check_for_error(read_mr, "Could not register memory region : read_mr, error code is : " + errno);
 
     // set the queue pair up for creation
     struct ibv_qp_init_attr qp_init_attr;
     memset(&qp_init_attr, 0, sizeof(qp_init_attr));
-    qp_init_attr.qp_type    = IBV_QPT_RC;
+    qp_init_attr.qp_type = IBV_QPT_RC;
     qp_init_attr.sq_sig_all = 1;
     // same completion queue for both send and receive operations
-    qp_init_attr.send_cq    = g_res->cq;
-    qp_init_attr.recv_cq    = g_res->cq;
+    qp_init_attr.send_cq = g_res->cq;
+    qp_init_attr.recv_cq = g_res->cq;
     // allow a lot of requests at a time
-    qp_init_attr.cap.max_send_wr  = 10;
-    qp_init_attr.cap.max_recv_wr  = 10;
+    qp_init_attr.cap.max_send_wr = 10;
+    qp_init_attr.cap.max_recv_wr = 10;
     qp_init_attr.cap.max_send_sge = 10;
     qp_init_attr.cap.max_recv_sge = 10;
     // create the queue pair
     qp = ibv_create_qp(g_res->pd, &qp_init_attr);
 
-    check_for_error (qp, "Could not create queue pair, error code is : " + errno);
-  
+    check_for_error(qp, "Could not create queue pair, error code is : " + errno);
+
     // connect the QPs
     connect_qp();
     cout << "Established RDMA connection with node " << r_index << endl;
-  }
-  
-  // cleans up the resources
-  void resources::destroy_resources () {
+}
+
+//destructor, cleans up the resources
+resources::~resources() {
     int rc = 0;
     if (qp) {
-      rc = ibv_destroy_qp(qp);
-      check_for_error (qp, "Could not destroy queue pair, error code is " + rc);      
+        rc = ibv_destroy_qp(qp);
+        check_for_error(qp, "Could not destroy queue pair, error code is " + rc);
     }
-  
+
     if (write_mr) {
-      rc = ibv_dereg_mr(write_mr);
-      check_for_error (!rc, "Could not de-register memory region : write_mr, error code is " + rc);
+        rc = ibv_dereg_mr(write_mr);
+        check_for_error(!rc, "Could not de-register memory region : write_mr, error code is " + rc);
     }
     if (read_mr) {
-      rc = ibv_dereg_mr(read_mr);
-      check_for_error (!rc, "Could not de-register memory region : read_mr, error code is " + rc);
+        rc = ibv_dereg_mr(read_mr);
+        check_for_error(!rc, "Could not de-register memory region : read_mr, error code is " + rc);
     }
-  }
-  
-  // transitions queue pair to init state
-  void resources::modify_qp_to_init() {
+}
+
+// transitions queue pair to init state
+void resources::modify_qp_to_init() {
     struct ibv_qp_attr attr;
     int flags;
     int rc;
@@ -148,15 +148,17 @@ namespace sst {
     attr.port_num = ib_port;
     attr.pkey_index = 0;
     // give access to local writes and remote reads
-    attr.qp_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE;
-    flags = IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS;
+    attr.qp_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ
+            | IBV_ACCESS_REMOTE_WRITE;
+    flags = IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT
+            | IBV_QP_ACCESS_FLAGS;
     // modify the queue pair to init state
     rc = ibv_modify_qp(qp, &attr, flags);
-    check_for_error (!rc, "Failed to modify queue pair to init state, error code is " + rc);
-  }
+    check_for_error(!rc, "Failed to modify queue pair to init state, error code is " + rc);
+}
 
-  // transitions queue pair to ready-to-receive state
-  void resources::modify_qp_to_rtr() {
+// transitions queue pair to ready-to-receive state
+void resources::modify_qp_to_rtr() {
     struct ibv_qp_attr attr;
     int flags, rc;
     memset(&attr, 0, sizeof(attr));
@@ -172,42 +174,43 @@ namespace sst {
     // set the local id of the remote side
     attr.ah_attr.dlid = remote_props.lid;
     attr.ah_attr.sl = 0;
-    attr.ah_attr.src_path_bits  = 0;
+    attr.ah_attr.src_path_bits = 0;
     // the infiniband port to associate with
     attr.ah_attr.port_num = ib_port;
     if (gid_idx >= 0) {
-      attr.ah_attr.is_global = 1;
-      attr.ah_attr.port_num = 1;
-      memcpy(&attr.ah_attr.grh.dgid, remote_props.gid, 16);
-      attr.ah_attr.grh.flow_label = 0;
-      attr.ah_attr.grh.hop_limit = 1;
-      attr.ah_attr.grh.sgid_index = gid_idx;
-      attr.ah_attr.grh.traffic_class = 0;
+        attr.ah_attr.is_global = 1;
+        attr.ah_attr.port_num = 1;
+        memcpy(&attr.ah_attr.grh.dgid, remote_props.gid, 16);
+        attr.ah_attr.grh.flow_label = 0;
+        attr.ah_attr.grh.hop_limit = 1;
+        attr.ah_attr.grh.sgid_index = gid_idx;
+        attr.ah_attr.grh.traffic_class = 0;
     }
-    flags = IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_DEST_QPN | IBV_QP_RQ_PSN | IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER;
+    flags = IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_DEST_QPN
+            | IBV_QP_RQ_PSN | IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER;
     rc = ibv_modify_qp(qp, &attr, flags);
-    check_for_error (!rc, "Failed to modify queue pair to ready-to-receive state, error code is " + rc);
-  }
+    check_for_error(!rc, "Failed to modify queue pair to ready-to-receive state, error code is " + rc);
+}
 
-  // transitions queue pair to ready-to-send state
-  void resources::modify_qp_to_rts() {
+// transitions queue pair to ready-to-send state
+void resources::modify_qp_to_rts() {
     struct ibv_qp_attr attr;
     int flags, rc;
     memset(&attr, 0, sizeof(attr));
     // set the state to ready to send
-    attr.qp_state      = IBV_QPS_RTS;
-    attr.timeout       = 0x12;
-    attr.retry_cnt     = 6;
-    attr.rnr_retry     = 0;
-    attr.sq_psn        = 0;
+    attr.qp_state = IBV_QPS_RTS;
+    attr.timeout = 0x12;
+    attr.retry_cnt = 6;
+    attr.rnr_retry = 0;
+    attr.sq_psn = 0;
     attr.max_rd_atomic = 1;
-    flags = IBV_QP_STATE | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY | IBV_QP_SQ_PSN | IBV_QP_MAX_QP_RD_ATOMIC;
+    flags = IBV_QP_STATE | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY
+            | IBV_QP_SQ_PSN | IBV_QP_MAX_QP_RD_ATOMIC;
     rc = ibv_modify_qp(qp, &attr, flags);
-    check_for_error (!rc, "Failed to modify queue pair to ready-to-send state, error code is " + rc);
-  }
+    check_for_error(!rc, "Failed to modify queue pair to ready-to-send state, error code is " + rc);
+}
 
-  
-  void resources::connect_qp() {
+void resources::connect_qp() {
     // get sockets required to share qp data
     int sock = tcp::get_sockets(remote_index);
 
@@ -219,28 +222,26 @@ namespace sst {
     struct cm_con_data_t tmp_con_data;
 
     // just a dummy character
-    char  temp_char;
-    char tQ[2] = {'Q', 0};
+    char temp_char;
+    char tQ[2] = { 'Q', 0 };
 
     union ibv_gid my_gid;
-    if (gid_idx >= 0) 
-      {
-	int rc = ibv_query_gid(g_res->ib_ctx, ib_port, gid_idx, &my_gid);
-	check_for_error (!rc, "ibv_query_gid failed, error code is " + errno);
-      }
-    else
-      {
-	memset(&my_gid, 0, sizeof my_gid);
-      }
+    if (gid_idx >= 0) {
+        int rc = ibv_query_gid(g_res->ib_ctx, ib_port, gid_idx, &my_gid);
+        check_for_error(!rc, "ibv_query_gid failed, error code is " + errno);
+    } else {
+        memset(&my_gid, 0, sizeof my_gid);
+    }
 
     // exchange using TCP sockets info required to connect QPs
-    local_con_data.addr = htonll((uintptr_t)(char*)write_buf);
+    local_con_data.addr = htonll((uintptr_t) (char*) write_buf);
     local_con_data.rkey = htonl(write_mr->rkey);
     local_con_data.qp_num = htonl(qp->qp_num);
     local_con_data.lid = htons(g_res->port_attr.lid);
     memcpy(local_con_data.gid, &my_gid, 16);
-    int sync_ret_code = tcp::sock_sync_data(sock, sizeof(struct cm_con_data_t), (char *) &local_con_data, (char *) &tmp_con_data);
-    check_for_error (sync_ret_code >= 0, "Could not exchange qp data in connect_qp");
+    int sync_ret_code = tcp::sock_sync_data(sock, sizeof(struct cm_con_data_t),
+            (char *) &local_con_data, (char *) &tmp_con_data);
+    check_for_error(sync_ret_code >= 0, "Could not exchange qp data in connect_qp");
     remote_con_data.addr = ntohll(tmp_con_data.addr);
     remote_con_data.rkey = ntohl(tmp_con_data.rkey);
     remote_con_data.qp_num = ntohl(tmp_con_data.qp_num);
@@ -248,7 +249,7 @@ namespace sst {
     memcpy(remote_con_data.gid, tmp_con_data.gid, 16);
     // save the remote side attributes, we will need it for the post SR
     remote_props = remote_con_data;
-  
+
     // modify the QP to init
     modify_qp_to_init();
 
@@ -261,19 +262,19 @@ namespace sst {
     // sync to make sure that both sides are in states that they can connect to prevent packet loss 
     // just send a dummy char back and forth
     sync_ret_code = tcp::sock_sync_data(sock, 1, tQ, &temp_char);
-    check_for_error (!sync_ret_code, "Could not sync in connect_qp after qp transition to RTS state");
-  }
+    check_for_error(!sync_ret_code, "Could not sync in connect_qp after qp transition to RTS state");
+}
 
-  // post remote operation; 0 is for read, 1 is for write
-  int resources::post_remote_send (long long int offset, long long int size, int op) {
+// post remote operation; 0 is for read, 1 is for write
+int resources::post_remote_send(long long int offset, long long int size, int op) {
     struct ibv_send_wr sr;
     struct ibv_sge sge;
     struct ibv_send_wr *bad_wr = NULL;
-  
+
     // prepare the scatter/gather entry
     memset(&sge, 0, sizeof(sge));
     // don't care where the read buffer is saved
-    sge.addr = (uintptr_t)(char*)read_buf;
+    sge.addr = (uintptr_t) (char*) read_buf;
     sge.length = size;
     sge.lkey = read_mr->lkey;
     // prepare the send work request
@@ -284,45 +285,44 @@ namespace sst {
     sr.num_sge = 1;
     // set opcode depending on op parameter
     if (op == 0) {
-      sr.opcode = IBV_WR_RDMA_READ;
-    }
-    else {
-      sr.opcode = IBV_WR_RDMA_WRITE;
+        sr.opcode = IBV_WR_RDMA_READ;
+    } else {
+        sr.opcode = IBV_WR_RDMA_WRITE;
     }
     sr.send_flags = IBV_SEND_SIGNALED;
     
     // set the remote rkey and virtual address
-    sr.wr.rdma.remote_addr = remote_props.addr+offset;
+    sr.wr.rdma.remote_addr = remote_props.addr + offset;
     sr.wr.rdma.rkey = remote_props.rkey;
     
     // there is a receive request in the responder side, so we won't get any into RNR flow
     int ret_code = ibv_post_send(qp, &sr, &bad_wr);
     return ret_code;
-  }
-  
-  // wrapper function for posting RDMA read at beginning address of remote memory
-  void resources::post_remote_read(long long int size) {
-    int rc = post_remote_send (0, size, 0);
-    check_for_error (!rc, "Could not post RDMA read, error code is " + rc);
-  }
-  // wrapper function for RDMA read with an offset
-  void resources::post_remote_read(long long int offset, long long int size) {
-    int rc = post_remote_send (offset, size, 0);
-    check_for_error (!rc, "Could not post RDMA read, error code is " + rc);
-  }
-  // wrapper function for RDMA write
-  void resources::post_remote_write(long long int size) {
-    int rc = post_remote_send (0, size, 1);
-    check_for_error (!rc, "Could not post RDMA write, error code is " + rc);
-  }
-  // wrapper function for RDMA write with an offset
-  void resources::post_remote_write(long long int offset, long long int size) {
-    int rc = post_remote_send (offset, size, 1);
-    check_for_error (!rc, "Could not post RDMA write, error code is " + rc);
-  }
+}
 
-  // polls for completion of one entry of the queue
-  void poll_completion() {
+// wrapper function for posting RDMA read at beginning address of remote memory
+void resources::post_remote_read(long long int size) {
+    int rc = post_remote_send(0, size, 0);
+    check_for_error(!rc, "Could not post RDMA read, error code is " + rc);
+}
+// wrapper function for RDMA read with an offset
+void resources::post_remote_read(long long int offset, long long int size) {
+    int rc = post_remote_send(offset, size, 0);
+    check_for_error(!rc, "Could not post RDMA read, error code is " + rc);
+}
+// wrapper function for RDMA write
+void resources::post_remote_write(long long int size) {
+    int rc = post_remote_send(0, size, 1);
+    check_for_error(!rc, "Could not post RDMA write, error code is " + rc);
+}
+// wrapper function for RDMA write with an offset
+void resources::post_remote_write(long long int offset, long long int size) {
+    int rc = post_remote_send(offset, size, 1);
+    check_for_error(!rc, "Could not post RDMA write, error code is " + rc);
+}
+
+// polls for completion of one entry of the queue
+void verbs_poll_completion() {
     struct ibv_wc wc;
     unsigned long start_time_msec;
     unsigned long cur_time_msec;
@@ -333,28 +333,28 @@ namespace sst {
     gettimeofday(&cur_time, NULL);
     start_time_msec = (cur_time.tv_sec * 1000) + (cur_time.tv_usec / 1000);
     do {
-      poll_result = ibv_poll_cq(g_res->cq, 1, &wc);
-      gettimeofday(&cur_time, NULL);
-      cur_time_msec = (cur_time.tv_sec * 1000) + (cur_time.tv_usec / 1000);
+        poll_result = ibv_poll_cq(g_res->cq, 1, &wc);
+        gettimeofday(&cur_time, NULL);
+        cur_time_msec = (cur_time.tv_sec * 1000) + (cur_time.tv_usec / 1000);
     } while ((poll_result == 0) && ((cur_time_msec - start_time_msec) < MAX_POLL_CQ_TIMEOUT));
 
-    check_for_error (!(poll_result < 0), "Poll completion failed");
-    check_for_error (!(poll_result == 0), "Completion wasn't found in the CQ after timeout");
+    check_for_error(!(poll_result < 0), "Poll completion failed");
+    check_for_error(!(poll_result == 0), "Completion wasn't found in the CQ after timeout");
     // check the completion status (here we don't care about the completion opcode
     if (wc.status != IBV_WC_SUCCESS) {
-      cout << "got bad completion with status: 0x%x, vendor syndrome: " << wc.status << ", " << wc.vendor_err;
+        cout << "got bad completion with status: 0x%x, vendor syndrome: " << wc.status << ", " << wc.vendor_err;
     }
-  }
-  
-  // allocates memory for global RDMA resources
-  void resources_init() {
-    // initialize the global resources
-    g_res = (global_resources *) malloc (sizeof (global_resources));
-    memset(g_res, 0, sizeof *g_res);
-  }
+}
 
-  // creates global resources
-  void resources_create() {
+// allocates memory for global RDMA resources
+void resources_init() {
+    // initialize the global resources
+    g_res = (global_resources *) malloc(sizeof(global_resources));
+    memset(g_res, 0, sizeof *g_res);
+}
+
+// creates global resources
+void resources_create() {
     struct ibv_device **dev_list = NULL;
     struct ibv_device *ib_dev = NULL;
     int i;
@@ -364,71 +364,71 @@ namespace sst {
 
     // get device names in the system
     dev_list = ibv_get_device_list(&num_devices);
-    check_for_error (dev_list, "ibv_get_device_list failed; returned a NULL list");
-  
+    check_for_error(dev_list, "ibv_get_device_list failed; returned a NULL list");
+
     // if there isn't any IB device in host
-    check_for_error (num_devices, "NO RDMA device present");
+    check_for_error(num_devices, "NO RDMA device present");
     // search for the specific device we want to work with
     for (i = 0; i < num_devices; i++) {
-      if(!dev_name) {
-	dev_name = strdup(ibv_get_device_name(dev_list[i])); 
-      }
-      if (!strcmp(ibv_get_device_name(dev_list[i]), dev_name)) {
-	ib_dev = dev_list[i];
-	break;
-      }
+        if (!dev_name) {
+            dev_name = strdup(ibv_get_device_name(dev_list[i]));
+        }
+        if (!strcmp(ibv_get_device_name(dev_list[i]), dev_name)) {
+            ib_dev = dev_list[i];
+            break;
+        }
     }
     // if the device wasn't found in host
-    check_for_error (ib_dev, "No RDMA devices found in the host");
+    check_for_error(ib_dev, "No RDMA devices found in the host");
     // get device handle
     g_res->ib_ctx = ibv_open_device(ib_dev);
-    check_for_error (g_res->ib_ctx, "Could not open RDMA device");
+    check_for_error(g_res->ib_ctx, "Could not open RDMA device");
     // we are now done with device list, free it
     ibv_free_device_list(dev_list);
     dev_list = NULL;
     ib_dev = NULL;
     // query port properties 
     rc = ibv_query_port(g_res->ib_ctx, ib_port, &g_res->port_attr);
-    check_for_error (!rc, "Could not query port properties, error code is " + rc);
+    check_for_error(!rc, "Could not query port properties, error code is " + rc);
 
     // allocate Protection Domain
     g_res->pd = ibv_alloc_pd(g_res->ib_ctx);
-    check_for_error (g_res->pd, "Could not allocate protection domain");
+    check_for_error(g_res->pd, "Could not allocate protection domain");
 
     // get the device attributes for the device
-    ibv_query_device (g_res->ib_ctx, &g_res->device_attr);
+    ibv_query_device(g_res->ib_ctx, &g_res->device_attr);
 
     // set to 1000 entries, we actually don't need more than the number of nodes
     cq_size = 1000;
     g_res->cq = ibv_create_cq(g_res->ib_ctx, cq_size, NULL, NULL, 0);
-    check_for_error (g_res->cq, "Could not create completion queue, error code is " + errno);
-  }
+    check_for_error(g_res->cq, "Could not create completion queue, error code is " + errno);
+}
 
-  // initializes global resource and then creates it
-  void verbs_initialize () {
+// initializes global resource and then creates it
+void verbs_initialize() {
     // init all of the resources, so cleanup will be easy
     resources_init();
     // create resources before using them
     resources_create();
 
     cout << "Initialized global RDMA resources" << endl;
-  }
+}
 
-  // destroys global resources
-  void verbs_destroy() {
+// destroys global resources
+void verbs_destroy() {
     int rc;
     if (g_res->cq) {
-      rc = ibv_destroy_cq(g_res->cq);
-      check_for_error (!rc, "Could not destroy completion queue");
+        rc = ibv_destroy_cq(g_res->cq);
+        check_for_error(!rc, "Could not destroy completion queue");
     }
     if (g_res->pd) {
-      rc = ibv_dealloc_pd(g_res->pd);
-      check_for_error (!rc, "Could not deallocate protection domain");
+        rc = ibv_dealloc_pd(g_res->pd);
+        check_for_error(!rc, "Could not deallocate protection domain");
     }
     if (g_res->ib_ctx) {
-      rc = ibv_close_device(g_res->ib_ctx);
-      check_for_error (!rc, "Could not close RDMA device");
+        rc = ibv_close_device(g_res->ib_ctx);
+        check_for_error(!rc, "Could not close RDMA device");
     }
-  }
+}
 
 } //namespace sst
