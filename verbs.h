@@ -58,7 +58,7 @@ class resources {
         /** Pointer to the memory buffer used for the results of RDMA remote reads. */
 		char* read_buf;
 
-        /** Constructor, initializes qp, mr and remote_props. */
+        /** Constructor; initializes Queue Pair, Memory Regions, and `remote_props`. */
         resources(int r_index, char* write_addr, char* read_addr, int size_w,
                 int size_r);
         /** Destroys the resources. */

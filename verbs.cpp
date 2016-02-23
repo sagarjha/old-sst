@@ -64,15 +64,15 @@ int gid_idx = -1;
 
 /** Structure containing global system resources. */
 struct global_resources {
-        /** device attributes. */
+        /** RDMA device attributes. */
         struct ibv_device_attr device_attr;
         /** IB port attributes. */
         struct ibv_port_attr port_attr;
-        /** device handle. */
+        /** Device handle. */
         struct ibv_context *ib_ctx;
         /** PD handle. */
         struct ibv_pd *pd;
-        /** CQ handle. */
+        /** Completion Queue handle. */
         struct ibv_cq *cq;
 };
 /** The single instance of global_resources for the %SST system */

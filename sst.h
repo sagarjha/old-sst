@@ -2,19 +2,21 @@
 #define SST_H
 
 #include <cassert>
+#include <cstring>
 #include <functional>
 #include <iostream>
 #include <list>
+#include <map>
+#include <memory>
 #include <thread>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include <map>
-#include <memory>
 
 #include "predicates.h"
-#include "verbs.h"
 #include "tcp.h"
+#include "verbs.h"
 
 /** The root namespace for the Shared State Table project. */
 namespace sst {
@@ -52,7 +54,7 @@ class SST {
         /** Index of this node in the table. */
         int member_index;
         /** The actual structure containing shared state data. */
-        vector<Row> table;
+        unique_ptr<volatile Row[]> table;
         /** A flag to signal background threads to shut down; set to true during destructor calls. */
         bool thread_shutdown;
 
@@ -60,14 +62,14 @@ class SST {
         SST(const vector<int> &_members, int _node_rank);
         virtual ~SST();
         /** Accesses a local or remote row. */
-        Row & get(int index);
+        volatile Row & get(int index);
         /** Accesses a local or remote row using the [] operator. */
-        Row & operator [](int index);
+        volatile Row & operator [](int index);
         int get_num_rows() const;
         /** Gets the the index of the local row in the table. */
         int get_local_index() const;
         /** Gets a snapshot of the table. */
-        const vector<Row> get_snapshot() const;
+        unique_ptr<const Row[]> get_snapshot() const;
         /** Does a TCP sync with each member of the SST. */
         void sync_with_members() const;
 };
@@ -146,7 +148,7 @@ class SST_writes: public SST<Row> {
 template<class Row>
 SST<Row>::SST(const vector<int> & _members, int _node_rank) :
         members(_members.size()), num_members(_members.size()),
-        table(_members.size()), thread_shutdown(false) {
+        table(new Row[_members.size()]), thread_shutdown(false) {
 
     // copy members and figure out the member_index 
     for (int i = 0; i < num_members; ++i) {
@@ -182,7 +184,7 @@ SST<Row>::~SST() {
  * @return A reference to the row structure stored at the requested row.
  */
 template<class Row>
-Row & SST<Row>::get(int index) {
+volatile Row & SST<Row>::get(int index) {
     // check that the index is within range
     assert(index >= 0 && index < num_members);
 
@@ -194,7 +196,7 @@ Row & SST<Row>::get(int index) {
  * Simply calls the get function.
  */
 template<class Row>
-Row & SST<Row>::operator [](int index) {
+volatile Row & SST<Row>::operator [](int index) {
     return get(index);
 }
 
@@ -225,10 +227,10 @@ int SST<Row>::get_local_index() const {
  * @return A copy of all the SST's rows in their current state.
  */
 template<class Row>
-const vector<Row> SST<Row>::get_snapshot() const {
-    // assignment does a deep copy
-    vector<Row> ret = table;
-    return ret;
+unique_ptr<const Row[]> SST<Row>::get_snapshot() const {
+    Row* copy = new Row[num_members];
+    std::memcpy(copy, const_cast<const Row*>(table.get()), num_members * sizeof(Row));
+    return unique_ptr<const Row[]>(copy);
 }
 
 /**
