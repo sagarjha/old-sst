@@ -1,8 +1,12 @@
+/**
+ * @file verbs.cpp
+ * Contains the implementation of the IB Verbs adapter layer of %SST.
+ */
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <string>
+#include <cstring>
 #include <unistd.h>
 #include <stdint.h>
 #include <inttypes.h>
@@ -26,8 +30,6 @@ using std::cout;
 using std::cerr;
 using std::endl;
 
-/* poll CQ timeout in millisec (2 seconds) */
-#define MAX_POLL_CQ_TIMEOUT 2000
 #define MSG      "SEND operation      "
 #define RDMAMSGR "RDMA read operation "
 #define RDMAMSGW "RDMA write operation"
@@ -51,30 +53,43 @@ void check_for_error (T var, string msg) {
 }
 
 namespace sst {
-// IB device name
+/** Completion Queue poll timeout in millisec (2 seconds) */
+const int MAX_POLL_CQ_TIMEOUT = 2000;
+/** IB device name. */
 const char *dev_name = NULL;
-// local IB port to work with
+/** Local IB port to work with. */
 int ib_port = 1;
-// gid index to use
+/** GID index to use. */
 int gid_idx = -1;
 
-/* structure of system resources */
+/** Structure containing global system resources. */
 struct global_resources {
-        // device attributes
+        /** device attributes. */
         struct ibv_device_attr device_attr;
-        // IB port attributes
+        /** IB port attributes. */
         struct ibv_port_attr port_attr;
-        // device handle
+        /** device handle. */
         struct ibv_context *ib_ctx;
-        // PD handle
+        /** PD handle. */
         struct ibv_pd *pd;
-        // CQ handle
+        /** CQ handle. */
         struct ibv_cq *cq;
 };
+/** The single instance of global_resources for the %SST system */
 struct global_resources *g_res;
 
-/*
- * initializes the resources. Registers write_addr and read_addr and connects queue pair
+/**
+ * Initializes the resources. Registers write_addr and read_addr as the read
+ * and write buffers and connects a queue pair with the specified remote node.
+ *
+ * @param r_index The node rank of the remote node to connect to.
+ * @param write_addr A pointer to the memory to use as the write buffer. This
+ * is where data should be written locally in order to send it in an RDMA write
+ * to the remote node.
+ * @param read_addr A pointer to the memory to use as the read buffer. This is
+ * where the results of RDMA reads from the remote node will arrive.
+ * @param size_w The size of the write buffer (in bytes).
+ * @param size_r The size of the read buffer (in bytes).
  */
 resources::resources(int r_index, char* write_addr, char* read_addr, int size_w, int size_r) {
     // set the remote index
@@ -93,8 +108,8 @@ resources::resources(int r_index, char* write_addr, char* read_addr, int size_w,
     // register memory with the protection domain and the buffer
     write_mr = ibv_reg_mr(g_res->pd, write_buf, size_w, mr_flags);
     read_mr = ibv_reg_mr(g_res->pd, read_buf, size_r, mr_flags);
-    check_for_error(write_mr, "Could not register memory region : write_mr, error code is : " + errno);
-    check_for_error(read_mr, "Could not register memory region : read_mr, error code is : " + errno);
+    check_for_error(write_mr, "Could not register memory region : write_mr, error code is : " + std::to_string(errno));
+    check_for_error(read_mr, "Could not register memory region : read_mr, error code is : " + std::to_string(errno));
 
     // set the queue pair up for creation
     struct ibv_qp_init_attr qp_init_attr;
@@ -112,32 +127,36 @@ resources::resources(int r_index, char* write_addr, char* read_addr, int size_w,
     // create the queue pair
     qp = ibv_create_qp(g_res->pd, &qp_init_attr);
 
-    check_for_error(qp, "Could not create queue pair, error code is : " + errno);
+    check_for_error(qp, "Could not create queue pair, error code is : " + std::to_string(errno));
 
     // connect the QPs
     connect_qp();
     cout << "Established RDMA connection with node " << r_index << endl;
 }
 
-//destructor, cleans up the resources
+/**
+ * Cleans up all IB Verbs resources associated with this connection.
+ */
 resources::~resources() {
     int rc = 0;
     if (qp) {
         rc = ibv_destroy_qp(qp);
-        check_for_error(qp, "Could not destroy queue pair, error code is " + rc);
+        check_for_error(qp, "Could not destroy queue pair, error code is " + std::to_string(rc));
     }
 
     if (write_mr) {
         rc = ibv_dereg_mr(write_mr);
-        check_for_error(!rc, "Could not de-register memory region : write_mr, error code is " + rc);
+        check_for_error(!rc, "Could not de-register memory region : write_mr, error code is " + std::to_string(rc));
     }
     if (read_mr) {
         rc = ibv_dereg_mr(read_mr);
-        check_for_error(!rc, "Could not de-register memory region : read_mr, error code is " + rc);
+        check_for_error(!rc, "Could not de-register memory region : read_mr, error code is " + std::to_string(rc));
     }
 }
 
-// transitions queue pair to init state
+/**
+ * This transitions the queue pair to the init state.
+ */
 void resources::modify_qp_to_init() {
     struct ibv_qp_attr attr;
     int flags;
@@ -154,10 +173,9 @@ void resources::modify_qp_to_init() {
             | IBV_QP_ACCESS_FLAGS;
     // modify the queue pair to init state
     rc = ibv_modify_qp(qp, &attr, flags);
-    check_for_error(!rc, "Failed to modify queue pair to init state, error code is " + rc);
+    check_for_error(!rc, "Failed to modify queue pair to init state, error code is " + std::to_string(rc));
 }
 
-// transitions queue pair to ready-to-receive state
 void resources::modify_qp_to_rtr() {
     struct ibv_qp_attr attr;
     int flags, rc;
@@ -189,10 +207,9 @@ void resources::modify_qp_to_rtr() {
     flags = IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_DEST_QPN
             | IBV_QP_RQ_PSN | IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER;
     rc = ibv_modify_qp(qp, &attr, flags);
-    check_for_error(!rc, "Failed to modify queue pair to ready-to-receive state, error code is " + rc);
+    check_for_error(!rc, "Failed to modify queue pair to ready-to-receive state, error code is " + std::to_string(rc));
 }
 
-// transitions queue pair to ready-to-send state
 void resources::modify_qp_to_rts() {
     struct ibv_qp_attr attr;
     int flags, rc;
@@ -207,12 +224,16 @@ void resources::modify_qp_to_rts() {
     flags = IBV_QP_STATE | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY
             | IBV_QP_SQ_PSN | IBV_QP_MAX_QP_RD_ATOMIC;
     rc = ibv_modify_qp(qp, &attr, flags);
-    check_for_error(!rc, "Failed to modify queue pair to ready-to-send state, error code is " + rc);
+    check_for_error(!rc, "Failed to modify queue pair to ready-to-send state, error code is " + std::to_string(rc));
 }
 
+/**
+ * This method implements the entire setup of the queue pairs, calling all the
+ * `modify_qp_*` methods in the process.
+ */
 void resources::connect_qp() {
     // get sockets required to share qp data
-    int sock = tcp::get_sockets(remote_index);
+    int sock = tcp::get_socket(remote_index);
 
     // local connection data
     struct cm_con_data_t local_con_data;
@@ -228,7 +249,7 @@ void resources::connect_qp() {
     union ibv_gid my_gid;
     if (gid_idx >= 0) {
         int rc = ibv_query_gid(g_res->ib_ctx, ib_port, gid_idx, &my_gid);
-        check_for_error(!rc, "ibv_query_gid failed, error code is " + errno);
+        check_for_error(!rc, "ibv_query_gid failed, error code is " + std::to_string(errno));
     } else {
         memset(&my_gid, 0, sizeof my_gid);
     }
@@ -265,7 +286,14 @@ void resources::connect_qp() {
     check_for_error(!sync_ret_code, "Could not sync in connect_qp after qp transition to RTS state");
 }
 
-// post remote operation; 0 is for read, 1 is for write
+/**
+ * This is used for both reads and writes.
+ *
+ * @param offset The offset within the remote buffer to start the operation at.
+ * @param size The number of bytes to read or write.
+ * @param op The operation mode; 0 is for read, 1 is for write.
+ * @return The return code of the IB Verbs post_send operation.
+ */
 int resources::post_remote_send(long long int offset, long long int size, int op) {
     struct ibv_send_wr sr;
     struct ibv_sge sge;
@@ -300,28 +328,45 @@ int resources::post_remote_send(long long int offset, long long int size, int op
     return ret_code;
 }
 
-// wrapper function for posting RDMA read at beginning address of remote memory
+/**
+ * @param size The number of bytes to read from remote memory.
+ */
 void resources::post_remote_read(long long int size) {
     int rc = post_remote_send(0, size, 0);
-    check_for_error(!rc, "Could not post RDMA read, error code is " + rc);
+    check_for_error(!rc, "Could not post RDMA read, error code is " + std::to_string(rc));
 }
-// wrapper function for RDMA read with an offset
+/**
+ * @param offset The offset, in bytes, of the remote memory buffer at which to
+ * start reading.
+ * @param size The number of bytes to read from remote memory.
+ */
 void resources::post_remote_read(long long int offset, long long int size) {
     int rc = post_remote_send(offset, size, 0);
-    check_for_error(!rc, "Could not post RDMA read, error code is " + rc);
+    check_for_error(!rc, "Could not post RDMA read, error code is " + std::to_string(rc));
 }
-// wrapper function for RDMA write
+/**
+ * @param size The number of bytes to write from the local buffer to remote memory.
+ */
 void resources::post_remote_write(long long int size) {
     int rc = post_remote_send(0, size, 1);
-    check_for_error(!rc, "Could not post RDMA write, error code is " + rc);
+    check_for_error(!rc, "Could not post RDMA write, error code is " + std::to_string(rc));
 }
-// wrapper function for RDMA write with an offset
+/**
+ * @param offset The offset, in bytes, of the remote memory buffer at which to
+ * start writing.
+ * @param size The number of bytes to write from the local buffer into remote memory.
+ */
 void resources::post_remote_write(long long int offset, long long int size) {
     int rc = post_remote_send(offset, size, 1);
-    check_for_error(!rc, "Could not post RDMA write, error code is " + rc);
+    check_for_error(!rc, "Could not post RDMA write, error code is " + std::to_string(rc));
 }
 
-// polls for completion of one entry of the queue
+/**
+ * @details
+ * This blocks until either a single entry in the completion queue has 
+ * completed, or a timeout is reached. The timeout is set by the constant  
+ * MAX_POLL_CQ_TIMEOUT.
+ */
 void verbs_poll_completion() {
     struct ibv_wc wc;
     unsigned long start_time_msec;
@@ -340,20 +385,20 @@ void verbs_poll_completion() {
 
     check_for_error(!(poll_result < 0), "Poll completion failed");
     check_for_error(!(poll_result == 0), "Completion wasn't found in the CQ after timeout");
-    // check the completion status (here we don't care about the completion opcode
+    // check the completion status (here we don't care about the completion opcode)
     if (wc.status != IBV_WC_SUCCESS) {
         cout << "got bad completion with status: 0x%x, vendor syndrome: " << wc.status << ", " << wc.vendor_err;
     }
 }
 
-// allocates memory for global RDMA resources
+/** Allocates memory for global RDMA resources. */
 void resources_init() {
     // initialize the global resources
     g_res = (global_resources *) malloc(sizeof(global_resources));
     memset(g_res, 0, sizeof *g_res);
 }
 
-// creates global resources
+/** Creates global RDMA resources. */
 void resources_create() {
     struct ibv_device **dev_list = NULL;
     struct ibv_device *ib_dev = NULL;
@@ -389,7 +434,7 @@ void resources_create() {
     ib_dev = NULL;
     // query port properties 
     rc = ibv_query_port(g_res->ib_ctx, ib_port, &g_res->port_attr);
-    check_for_error(!rc, "Could not query port properties, error code is " + rc);
+    check_for_error(!rc, "Could not query port properties, error code is " + std::to_string(rc));
 
     // allocate Protection Domain
     g_res->pd = ibv_alloc_pd(g_res->ib_ctx);
@@ -401,10 +446,13 @@ void resources_create() {
     // set to 1000 entries, we actually don't need more than the number of nodes
     cq_size = 1000;
     g_res->cq = ibv_create_cq(g_res->ib_ctx, cq_size, NULL, NULL, 0);
-    check_for_error(g_res->cq, "Could not create completion queue, error code is " + errno);
+    check_for_error(g_res->cq, "Could not create completion queue, error code is " + std::to_string(errno));
 }
 
-// initializes global resource and then creates it
+/**
+ * @details
+ * This must be called before creating or using any SST instance.
+ */
 void verbs_initialize() {
     // init all of the resources, so cleanup will be easy
     resources_init();
@@ -414,7 +462,11 @@ void verbs_initialize() {
     cout << "Initialized global RDMA resources" << endl;
 }
 
-// destroys global resources
+/**
+ * @details
+ * This cleans up all the global resources used by the SST system, so it should
+ * only be called once all SST instances have been destroyed.
+ */
 void verbs_destroy() {
     int rc;
     if (g_res->cq) {

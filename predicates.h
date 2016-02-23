@@ -18,79 +18,118 @@ class SST_reads;
 template<class Row>
 class SST_writes;
 
+/** Enumeration defining the kinds of predicates an SST can handle. */
 enum class PredicateType {
-    ONE_TIME, RECURRENT, TRANSITION
+	/** One-time predicates only fire once; they are deleted once they become true. */
+    ONE_TIME, 
+	/** Recurrent predicates persist as long as the SST instance and fire their
+	 * triggers every time they are true. */
+	RECURRENT, 
+	/** Transition predicates persist as long as the SST instance, but only fire
+	 * their triggers when they transition from false to true. */
+	TRANSITION
 };
 
-// predicates class for reads
+/**
+ * Predicates class for SST-reads.
+ */
 template<class Row>
 class Predicates_read {
+		/** Predicate type for SST-reads */
         typedef function<bool(SST_reads<Row>*)> pred_read;
+		/** Trigger type for SST-reads */
         typedef function<void(SST_reads<Row>*)> trig_read;
-        // list of a predicate paired with a list of callbacks
+        /** Type definition for a list of predicates, where each predicate is 
+		 * paired with a list of callbacks */
         typedef list<pair<pred_read, list<trig_read>>> pred_list_read;
 
     public:
-        pred_list_read one_time_predicates, recurrent_predicates, transition_predicates;
-        //Contains one entry for every predicate in transition_predicates, in parallel
+		/** Predicate list for one-time predicates. */
+        pred_list_read one_time_predicates; 
+		/** Predicate list for recurrent predicates */
+		pred_list_read recurrent_predicates; 
+		/** Predicate list for transition predicates */
+		pred_list_read transition_predicates; 
+        /** Contains one entry for every predicate in `transition_predicates`, in parallel. */
         list<bool> transition_predicate_states;
 
-        // inserts a (pred,trig) pair to the list of predicates
-        void insert(pred_read f, trig_read g, PredicateType type =
+        /** Inserts a single (predicate, trigger) pair to the appropriate predicate list. */
+        void insert(pred_read predicate, trig_read trigger, PredicateType type =
                 PredicateType::ONE_TIME);
 };
 
-// predicates class for writes
+/**
+ * Predicates class for SST-writes.
+ */
 template<class Row>
 class Predicates_write {
+		/** Predicate type for SST-writes */
         typedef function<bool(SST_writes<Row>*)> pred_write;
+		/** Trigger type for SST-writes */
         typedef function<void(SST_writes<Row>*)> trig_write;
+        /** Type definition for a list of predicates, where each predicate is 
+		 * paired with a list of callbacks */
         typedef list<pair<pred_write, list<trig_write>>> pred_list_write;
 
     public:
-        // list of predicates and triggers
-        pred_list_write one_time_predicates, recurrent_predicates, transition_predicates;
-        //Contains one entry for every predicate in transition_predicates, in parallel
+        /** @copydoc Predicates_read::one_time_predicates */
+		pred_list_write one_time_predicates;
+        /** @copydoc Predicates_read::recurrent_predicates */
+		pred_list_write recurrent_predicates;
+        /** @copydoc Predicates_read::transition_predicates */
+		pred_list_write transition_predicates;
+		/** @copydoc Predicates_read::transition_predicate_states */
         list<bool> transition_predicate_states;
 
-        // inserts a (pred,trig) pair to the list of predicates
-        void insert(pred_write f, trig_write g, PredicateType type = PredicateType::ONE_TIME);
+        /** Inserts a single (predicate, trigger) pair to the appropriate predicate list. */
+        void insert(pred_write predicate, trig_write trigger, PredicateType type = PredicateType::ONE_TIME);
 };
 
-// insert into different lists based on the type
+/**
+ * This is a convenience method for when the predicate has only one trigger; it
+ * automatically chooses the right list based on the predicate type. To insert
+ * a predicate with multiple triggers, use std::list::insert() directly on the 
+ * appropriate predicate list member.
+ * @param predicate The predicate to insert.
+ * @param trigger The trigger to execute when the predicate is true.
+ * @param type The type of predicate being inserted; default is 
+ * PredicateType::ONE_TIME
+ */
 template<class Row>
-void Predicates_read<Row>::insert(pred_read f, trig_read g,
+void Predicates_read<Row>::insert(pred_read predicate, trig_read trigger,
         PredicateType type) {
     list<trig_read> g_list;
-    g_list.push_back(g);
+    g_list.push_back(trigger);
     if (type == PredicateType::ONE_TIME) {
         one_time_predicates.push_back(
-                pair<pred_read, list<trig_read> >(f, g_list));
+                pair<pred_read, list<trig_read> >(predicate, g_list));
     } else if (type == PredicateType::RECURRENT) {
         recurrent_predicates.push_back(
-                pair<pred_read, list<trig_read> >(f, g_list));
+                pair<pred_read, list<trig_read> >(predicate, g_list));
     } else {
         transition_predicates.push_back(
-                pair<pred_read, list<trig_read> >(f, g_list));
+                pair<pred_read, list<trig_read> >(predicate, g_list));
         transition_predicate_states.push_back(false);
     }
 }
 
-// insert into different lists based on the type
+/**
+ * @copydetails Predicates_read::insert()
+ */
 template<class Row>
-void Predicates_write<Row>::insert(pred_write f, trig_write g,
+void Predicates_write<Row>::insert(pred_write predicate, trig_write trigger,
         PredicateType type) {
     list<trig_write> g_list;
-    g_list.push_back(g);
+    g_list.push_back(trigger);
     if (type == PredicateType::ONE_TIME) {
         one_time_predicates.push_back(
-                pair<pred_write, list<trig_write> >(f, g_list));
+                pair<pred_write, list<trig_write> >(predicate, g_list));
     } else if (type == PredicateType::RECURRENT) {
         recurrent_predicates.push_back(
-                pair<pred_write, list<trig_write> >(f, g_list));
+                pair<pred_write, list<trig_write> >(predicate, g_list));
     } else {
         transition_predicates.push_back(
-                pair<pred_write, list<trig_write> >(f, g_list));
+                pair<pred_write, list<trig_write> >(predicate, g_list));
         transition_predicate_states.push_back(false);
     }
 }

@@ -1,72 +1,87 @@
 #ifndef VERBS_H
 #define VERBS_H
 
+/**
+ * @file verbs.h
+ * Contains declarations needed for working with RDMA using InfiniBand Verbs,
+ * including the Resources class and global setup functions.
+ */
+
 #include <infiniband/verbs.h>
 
 namespace sst {
 
-/* structure to exchange data which is needed to connect the QPs */
+/** Structure to exchange the data needed to connect the Queue Pairs */
 struct cm_con_data_t {
-    // Buffer address
+    /** Buffer address */
     uint64_t addr;
-    // Remote key
+    /** Remote key */
     uint32_t rkey;
-    // QP number
+    /** Queue Pair number */
     uint32_t qp_num;
-    // LID of the IB port
+    /** LID of the InfiniBand port */
     uint16_t lid;
-    // gid
+    /** GID */
     uint8_t gid[16];
 }__attribute__((packed));
 
+/**
+ * Represents the set of RDMA resources needed to maintain a two-way connection
+ * to a single remote node.
+ */
 class resources {
     private:
-        // initialize queue pair
+        /** Initializes the queue pair. */
         void modify_qp_to_init();
-        // drive qp to ready-to-receive state
+        /** Transitions the queue pair to the ready-to-receive state. */
         void modify_qp_to_rtr();
-        // drive qp to ready-to-send state
+        /** Transitions the queue pair to the ready-to-send state. */
         void modify_qp_to_rts();
-        // connect the queue pairs
+        /** Connect the queue pairs. */
         void connect_qp();
-        // post remote operation
+        /** Post a remote RDMA operation. */
         int post_remote_send(long long int offset, long long int size, int op);
 
     public:
-        // index of the corresponding node
+        /** Index of the remote node. */
         int remote_index;
-        // QP handle
-        struct ibv_qp *qp;
-        // MR handle for buf
-        struct ibv_mr *write_mr, *read_mr;
-        // values to connect to remote side
+        /** Handle for the IB Verbs Queue Pair object. */
+        struct ibv_qp* qp;
+        /** Memory Region handle for the write buffer. */
+        struct ibv_mr* write_mr;
+        /** Memory Region handle for the read buffer. */
+		struct ibv_mr* read_mr;
+        /** Connection data values needed to connect to remote side. */
         struct cm_con_data_t remote_props;
-        // memory buffer pointer, used for RDMA remote reads and local writes
-        char *write_buf, *read_buf;
+        /** Pointer to the memory buffer used for local writes.*/
+        char* write_buf; 
+        /** Pointer to the memory buffer used for the results of RDMA remote reads. */
+		char* read_buf;
 
-        // constructor, initializes qp, mr and remote_props
+        /** Constructor, initializes qp, mr and remote_props. */
         resources(int r_index, char* write_addr, char* read_addr, int size_w,
                 int size_r);
-        // destroy the resources
+        /** Destroys the resources. */
         virtual ~resources();
         /*
          wrapper functions that make up the user interface
          all call post_remote_send with different parameters
          */
-        //post an RDMA read with start address of remote memory
+        /** Post an RDMA read at the beginning address of remote memory. */
         void post_remote_read(long long int size);
-        // post an RDMA operation with an offset into remote memory
+        /** Post an RDMA read at an offset into remote memory. */
         void post_remote_read(long long int offset, long long int size);
-        // corresponding functions for RDMA write
+        /** Post an RDMA write at the beginning address of remote memory. */
         void post_remote_write(long long int size);
+        /** Post an RDMA write at an offset into remote memory. */
         void post_remote_write(long long int offset, long long int size);
 };
 
-// initialize the global verbs resources
+/** Initializes the global verbs resources. */
 void verbs_initialize();
-// poll for completion of the posted remote read
+/** Polls for completion of a single posted remote read. */
 void verbs_poll_completion();
-// destroy the global resources
+/** Destroys the global verbs resources. */
 void verbs_destroy();
 
 } //namespace sst
