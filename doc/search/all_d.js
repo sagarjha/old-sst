@@ -5,6 +5,7 @@ var searchData=
   ['read',['read',['../classsst_1_1SST__reads.html#ab385222aff64a0347d9321a6632eb768',1,'sst::SST_reads']]],
   ['read_5fbuf',['read_buf',['../classsst_1_1resources.html#abf39ce58ccafb03af5b09d04a39963fb',1,'sst::resources']]],
   ['read_5fmr',['read_mr',['../classsst_1_1resources.html#a05838f448a0463befed982a68e4f7ec8',1,'sst::resources']]],
+  ['readme_2emd',['README.md',['../README_8md.html',1,'']]],
   ['recurrent',['RECURRENT',['../namespacesst.html#abaf45d665334a2ff0cf9cf94dba231a6a7dcb09b5efe57de615a03ffa691da9dd',1,'sst']]],
   ['recurrent_5fpredicates',['recurrent_predicates',['../classsst_1_1Predicates__read.html#a70df4cc69f2fe6e431b33e6044cc9126',1,'sst::Predicates_read::recurrent_predicates()'],['../classsst_1_1Predicates__write.html#a98c72245efb3ee645aad59a8747e26f1',1,'sst::Predicates_write::recurrent_predicates()']]],
   ['refresh_5ftable',['refresh_table',['../classsst_1_1SST__reads.html#adb044e33b5e89c7da05422588c1b9a01',1,'sst::SST_reads']]],

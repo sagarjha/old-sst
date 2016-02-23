@@ -78,10 +78,11 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <div class="title">Shared State Table Documentation</div>  </div>
 </div><!--header-->
 <div class="contents">
-</div><!-- contents -->
+<div class="textblock"><p><b>SST</b> defines a <b>state table</b> for its members containing a row for each node which stores the local state of each object. The state variables are defined as a C++ <em>POD struct</em> with no pointers. Nodes can register <b>predicates</b> (properties on the state table) locally with the SST which fire functions called <b>triggers</b> which perform local computation and update the local row, if necessary. SST can be used in reads mode, which uses one-sided RDMA reads to update the table, or writes mode, which uses one-sided RDMA writes to update the table. It optimizes for RDMA operations and abstracts them from the programmer, thus providing a convenient interface to code applications to run over RDMA networks. </p>
+</div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Feb 22 2016 20:08:31 for Shared State Table by &#160;<a href="http://www.doxygen.org/index.html">
+Generated on Mon Feb 22 2016 20:49:17 for Shared State Table by &#160;<a href="http://www.doxygen.org/index.html">
 <img class="footer" src="doxygen.png" alt="doxygen"/>
 </a> 1.8.6
 </small></address>

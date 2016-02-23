@@ -10,7 +10,7 @@ var indexSectionsWithContent =
   0: "_acdegilmnopqrstvw~",
   1: "cgprs",
   2: "s",
-  3: "pstv",
+  3: "prstv",
   4: "_cdegimoprstv~",
   5: "_acdgilmnopqrstw",
   6: "pt",
