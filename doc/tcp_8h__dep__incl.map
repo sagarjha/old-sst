@@ -1,5 +1,0 @@
-<map id="tcp.h" name="tcp.h">
-<area shape="rect" id="node2" href="$sst_8h.html" title="sst.h" alt="" coords="5,80,56,107"/>
-<area shape="rect" id="node3" href="$tcp_8cpp.html" title="Implementation of the TCP subsystem of SST, which is used for out&#45;of&#45;band communications between node..." alt="" coords="81,80,145,107"/>
-<area shape="rect" id="node4" href="$verbs_8cpp.html" title="Contains the implementation of the IB Verbs adapter layer of SST. " alt="" coords="170,80,248,107"/>
-</map>

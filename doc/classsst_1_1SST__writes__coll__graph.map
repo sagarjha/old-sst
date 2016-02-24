@@ -1,5 +1,0 @@
-<map id="sst::SST_writes&lt; Row &gt;" name="sst::SST_writes&lt; Row &gt;">
-<area shape="rect" id="node2" href="$classsst_1_1SST.html" title="The base SST object, containing common members and code. " alt="" coords="776,77,901,104"/>
-<area shape="rect" id="node8" href="$classsst_1_1resources.html" title="Represents the set of RDMA resources needed to maintain a two&#45;way connection to a single remote node..." alt="" coords="278,181,383,208"/>
-<area shape="rect" id="node9" href="$structsst_1_1cm__con__data__t.html" title="Structure to exchange the data needed to connect the Queue Pairs. " alt="" coords="6,181,143,208"/>
-</map>
