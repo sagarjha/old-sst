@@ -4,4 +4,4 @@ PROJECT(sst CXX)
 SET(CMAKE_CXX_FLAGS "-std=c++14 -O1 -g -Wall -Wno-unused-function -Wno-unused-variable -fno-omit-frame-pointer -Wno-unused-but-set-variable -Wno-unused-result")
 
 ADD_LIBRARY(sst tcp.cpp verbs.cpp)
-TARGET_LINK_LIBRARIES(sst rdmacm ibverbs pthread lrt) 
+TARGET_LINK_LIBRARIES(sst rdmacm ibverbs pthread rt) 
