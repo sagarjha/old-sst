@@ -50,14 +50,6 @@ extern int port;
 }
 }
 
-void sync_with_all() {
-	for (int n = 0; n < num_nodes; ++n) {
-		if (n != this_node_rank) {
-			sync(n);
-		}
-	}
-}
-
 int main (int argc, char** argv) {
   using namespace sst::experiments;
   if (argc < 3) {
@@ -129,47 +121,17 @@ int main (int argc, char** argv) {
 		  }
 	  }
   }
-  sync_with_all();
+  linkstate_sst->sync_with_members();
 
   //Node-local state variables:
   vector<int> forwarding_table(num_nodes);
   unordered_set<pair<int, int>> links_used;
   unique_ptr<const LSDB_Row<RACK_SIZE>[]> linkstate_snapshot = linkstate_sst->get_snapshot();
 
-//  const LSDB_Row<RACK_SIZE> & ref[] = linkstate_snapshot;
   //Compute initial routing table
   compute_routing_table(this_node_rank, num_nodes, forwarding_table, links_used, linkstate_snapshot.get());
 //  print_routing_table(forwarding_table);
 
- /*
-  //Simplest predicate: recompute if anything changes (this could be more targeted to only detect changes that matter)
-  vector<unsigned long> last_timestamp(num_nodes);
-  for(int i = 0; i < num_nodes; ++i) {
-	  last_timestamp[i] = linkstate_sst[i].time_updated;
-  }
-  auto predicate = [&last_timestamp] (SST_writes<LSDB_Row<RACK_SIZE>>* sst) {
-	  for(int i = 0; i < num_nodes; ++i) {
-		  if((*sst)[i].time_updated > last_timestamp[i]) {
-			  return true;
-		  }
-	  }
-	  return false;
-  };
-  
-
-  //Action: Recompute my local routing table
-  auto recompute_action = [&forwarding_table, &last_timestamp] (SST_writes<LSDB_Row<RACK_SIZE>>* sst) {
-	  auto linkstate_snapshot = sst->get_snapshot();
-	  //First, save the new most-recent timestamps
-	  for(int i = 0; i < num_nodes; ++i) {
-		  last_timestamp[i] = linkstate_snapshot[i].time_updated;
-	  }
-	  compute_routing_table(forwarding_table, linkstate_snapshot);
-	  cout << "Updated routing table: " << endl;
-	  print_routing_table(forwarding_table);
-  };
-
-*/
 
   //Predicate: If any links change that might invalidate our existing path choices
   auto predicate = [&links_used, &linkstate_snapshot] (SST_writes<LSDB_Row<RACK_SIZE>>* sst) {
@@ -183,7 +145,6 @@ int main (int argc, char** argv) {
 					//A link we didn't use got better (less costly) than its last known state
 					|| (links_used.count(link) == 0 &&
 							(*sst)[source].link_cost[target] < linkstate_snapshot[source].link_cost[target]))) {
-//				cout << "Detected significant change: link (" << source << "," << target << ") changed from " <<  linkstate_snapshot[source].link_cost[target] << " to " << (*sst)[source].link_cost[target] << endl;
 				return true;
 			}
 		}
@@ -202,8 +163,6 @@ int main (int argc, char** argv) {
 		  sst->put();
 
 	  }
-//	  cout << "Updated routing table: " << endl;
-//	  print_routing_table(forwarding_table);
   };
 
 
@@ -211,7 +170,7 @@ int main (int argc, char** argv) {
   linkstate_sst->predicates.insert(predicate, recompute_action, sst::PredicateType::RECURRENT);
 
   //Barrier before starting the experiment
-  sync_with_all();
+  linkstate_sst->sync_with_members();
   //Warm up the processor again
   busy_wait_for(0.5 * SECONDS_TO_NS);
 
@@ -251,7 +210,6 @@ int main (int argc, char** argv) {
 		  };
 		  auto barrier_action = [&current_barrier_value, &end_times, rep] (SST_writes<LSDB_Row<RACK_SIZE>>* sst) {
 			  end_times[rep] = get_realtime_clock();
-//			  cout << "All nodes have reached barrier " << current_barrier_value << endl;
 			  current_barrier_value++;
 			  //Reset link values to initial state
 			  int local = sst->get_local_index();
@@ -267,7 +225,6 @@ int main (int argc, char** argv) {
 		  long long int rand_time = wait_rand(engine);
 		  busy_wait_for(rand_time);
 
-//		  cout << "Starting experiment trial " << rep << endl;
 		  start_times[rep] = get_realtime_clock();
 		  //Make a change that's guaranteed to make everyone recompute their routing tables,
 		  //by making two of 0's links very slow
@@ -288,7 +245,7 @@ int main (int argc, char** argv) {
 	  }
 
 	  //Sync with the other nodes to let them finish
-	  sync_with_all();
+	  linkstate_sst->sync_with_members();
 
 	  double first_mean, first_stdev, whole_mean, whole_stdev;
 	  tie(whole_mean, whole_stdev) = compute_statistics(start_times, end_times);
@@ -312,18 +269,6 @@ int main (int argc, char** argv) {
 	  //This will block until all trials are complete
 	  sync(TIMING_NODE);
   }
-//		  //Pick a random connection to change
-//		  vector<int> connected_nodes;
-//		  for(int i = 0; i < num_nodes; ++i) {
-//			  if(linkstate_sst->link_cost[i] > 0) {
-//				  connected_nodes.push_back(i);
-//			  }
-//		  }
-//		  std::random_shuffle(connected_nodes.begin(), connected_nodes.end());
-//		  int node_to_change = connected_nodes.front();
-//		  //Pick a random new metric for this link
-//		  linkstate_sst->link_cost[node_to_change] = metric_rand(engine);
-
 
   delete(linkstate_sst);
   return 0;
