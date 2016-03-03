@@ -50,7 +50,7 @@ namespace experiments {
  */
 void compute_routing_table(int this_node_num, int num_nodes, vector<int>& forwarding_table, unordered_set<pair<int, int>>& links_used,
         LSDB_Row<RACK_SIZE> const * const linkstate_rows) {
-    assert(forwarding_table.size() == num_nodes);
+    assert(forwarding_table.size() == static_cast<vector<int>::size_type>(num_nodes));
 	//Build a graph of the network from the link state table, then pass it to Dijkstra
 	path_finding::adjacency_list_t network_adjacency_list(num_nodes);
 	for (int source = 0; source < num_nodes; ++source) {

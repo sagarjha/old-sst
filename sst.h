@@ -333,9 +333,9 @@ void SST_reads<Row>::detect() {
         // one time predicates need to be evaluated only until they become true
         auto pred_it = predicates.one_time_predicates.begin();
         while (pred_it != predicates.one_time_predicates.end()) {
-            if (pred_it->first(this) == true) {
+            if (pred_it->first(*this) == true) {
                 for (auto func : pred_it->second) {
-                    func(this);
+                    func(*this);
                 }
                 // erase the predicate as it was just found to be true
                 pred_it = predicates.one_time_predicates.erase(pred_it);
@@ -347,9 +347,9 @@ void SST_reads<Row>::detect() {
         // recurrent predicates are evaluated each time they are found to be true
         for (pred_it = predicates.recurrent_predicates.begin();
                 pred_it != predicates.recurrent_predicates.end(); ++pred_it) {
-            if (pred_it->first(this) == true) {
+            if (pred_it->first(*this) == true) {
                 for (auto func : pred_it->second) {
-                    func(this);
+                    func(*this);
                 }
             }
         }
@@ -359,10 +359,10 @@ void SST_reads<Row>::detect() {
         auto pred_state_it = predicates.transition_predicate_states.begin();
         while (pred_it != predicates.transition_predicates.end()) {
             //*pred_state_it is the previous state of the predicate at *pred_it
-            bool curr_pred_state = pred_it->first(this);
+            bool curr_pred_state = pred_it->first(*this);
             if (curr_pred_state == true && *pred_state_it == false) {
                 for (auto func : pred_it->second) {
-                    func(this);
+                    func(*this);
                 }
             }
             *pred_state_it = curr_pred_state;
@@ -470,9 +470,9 @@ void SST_writes<Row>::detect() {
         // one time predicates need to be evaluated only until they become true
         auto pred_it = predicates.one_time_predicates.begin();
         while (pred_it != predicates.one_time_predicates.end()) {
-            if (pred_it->first(this) == true) {
+            if (pred_it->first(*this) == true) {
                 for (auto func : pred_it->second) {
-                    func(this);
+                    func(*this);
                 }
                 pred_it = predicates.one_time_predicates.erase(pred_it);
             } else {
@@ -483,9 +483,9 @@ void SST_writes<Row>::detect() {
         // recurrent predicates are evaluated each time they are found to be true
         for (pred_it = predicates.recurrent_predicates.begin();
                 pred_it != predicates.recurrent_predicates.end(); ++pred_it) {
-            if (pred_it->first(this) == true) {
+            if (pred_it->first(*this) == true) {
                 for (auto func : pred_it->second) {
-                    func(this);
+                    func(*this);
                 }
             }
         }
@@ -495,10 +495,10 @@ void SST_writes<Row>::detect() {
         auto pred_state_it = predicates.transition_predicate_states.begin();
         while (pred_it != predicates.transition_predicates.end()) {
             //*pred_state_it is the previous state of the predicate at *pred_it
-            bool curr_pred_state = pred_it->first(this);
+            bool curr_pred_state = pred_it->first(*this);
             if (curr_pred_state == true && *pred_state_it == false) {
                 for (auto func : pred_it->second) {
-                    func(this);
+                    func(*this);
                 }
             }
             *pred_state_it = curr_pred_state;

@@ -94,10 +94,10 @@ int main (int argc, char** argv) {
 	if(this_node_rank == TIMING_NODE) {
 		vector<long long int> start_times(EXPERIMENT_TRIALS);
 		vector<long long int> end_times(EXPERIMENT_TRIALS);
-		auto experiment_pred = [](SST_writes<BigRow>* sst) {
+		auto experiment_pred = [](SST_writes<BigRow>& sst) {
 			for(int n = 0; n < num_nodes; ++n) {
 				for(int i = 0; i < ROWSIZE; ++i) {
-					if((*sst)[n].data[i] == 0) {
+					if(sst[n].data[i] == 0) {
 						return false;
 					}
 				}
@@ -108,10 +108,10 @@ int main (int argc, char** argv) {
 		std::mt19937 engine;
 		for(int trial = 0; trial < EXPERIMENT_TRIALS; ++trial) {
 
-			auto done_action = [&end_times, trial](SST_writes<BigRow>* sst) {
+			auto done_action = [&end_times, trial](SST_writes<BigRow>& sst) {
 				end_times[trial] = experiments::get_realtime_clock();
-				(*sst)[sst->get_local_index()].data[0] = 0;
-				sst->put(offsetof(BigRow, data[0]), sizeof(int));
+				sst[sst.get_local_index()].data[0] = 0;
+				sst.put(offsetof(BigRow, data[0]), sizeof(int));
 			};
 
 			sst->predicates.insert(experiment_pred, done_action, PredicateType::ONE_TIME);
@@ -155,14 +155,14 @@ int main (int argc, char** argv) {
 
 			if(this_node_rank == num_nodes-1) {
 				//Predicate to detect that node 0 is ready to start the experiment
-				auto start_pred = [](SST_writes<BigRow>* sst) {
-					return (*sst)[TIMING_NODE].data[0] == 1;
+				auto start_pred = [](SST_writes<BigRow>& sst) {
+					return sst[TIMING_NODE].data[0] == 1;
 				};
 
 				//Change this node's last value to 1 in response
-				auto start_react = [](SST_writes<BigRow>* sst) {
-					(*sst)[sst->get_local_index()].data[ROWSIZE-1] = 1;
-					sst->put(offsetof(BigRow, data[ROWSIZE-1]), sizeof(int));
+				auto start_react = [](SST_writes<BigRow>& sst) {
+					sst[sst.get_local_index()].data[ROWSIZE-1] = 1;
+					sst.put(offsetof(BigRow, data[ROWSIZE-1]), sizeof(int));
 				};
 				sst->predicates.insert(start_pred, start_react, PredicateType::ONE_TIME);
 			}

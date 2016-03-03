@@ -6,7 +6,7 @@
 #include "../sst.h"
 #include "../tcp.h"
 //Since all SST instances are named sst, we can use this convenient hack
-#define LOCAL sst->get_local_index()
+#define LOCAL sst.get_local_index()
 
 using std::vector;
 using std::string;
@@ -57,7 +57,7 @@ int main () {
   
   // create a new shared state table with all the members
   SST_writes<Row> *sst = new SST_writes<Row> (members, node_rank);
-  (*sst)[LOCAL].a = 0;
+  (*sst)[sst->get_local_index()].a = 0;
   sst->put ();
 
   bool if_exit = false;
@@ -81,9 +81,9 @@ int main () {
   struct timespec start_time;
 
   // the predicate
-  auto f = [num_nodes] (SST_writes <Row> *sst) {
+  auto f = [num_nodes] (SST_writes <Row> & sst) {
       for (int i = 0; i < num_nodes; ++i) {
-          if ((*sst)[i].a < (*sst)[LOCAL].a) {
+          if (sst[i].a < sst[LOCAL].a) {
               return false;
           }
       }
@@ -91,20 +91,20 @@ int main () {
   };
 
   // trigger. Increments self value
-  auto g = [&start_time] (SST_writes <Row> *sst) {
-	  ++((*sst)[LOCAL].a);
-	  sst->put ();
-	  if ((*sst)[LOCAL].a == 1000000) {
+  auto g = [&start_time] (SST_writes <Row> & sst) {
+	  ++(sst[LOCAL].a);
+	  sst.put ();
+	  if (sst[LOCAL].a == 1000000) {
 		  // end timer
 		  struct timespec end_time;
 		  clock_gettime(CLOCK_REALTIME, &end_time);
 		  // my_time is time taken to count
 		  double my_time = ((end_time.tv_sec*1e9 + end_time.tv_nsec)- (start_time.tv_sec*1e9 + start_time.tv_nsec))/1e9;
-		  int node_rank = sst->get_local_index();
+		  int node_rank = sst.get_local_index();
 		  // node 0 finds the average by reading all the times taken by remote nodes
 		  // Anyway, the values will be quite close as the counting is synchronous
 		  if (node_rank == 0) {
-			  int num_nodes = sst->get_num_rows();
+			  int num_nodes = sst.get_num_rows();
 			  resources *res;
 			  double times[num_nodes];
 			  // read the other nodes' time

@@ -101,9 +101,9 @@ int main (int argc, char** argv) {
 			cout << "Starting experiment for r=" << r << endl;
 			vector<long long int> start_times(EXPERIMENT_TRIALS);
 			vector<long long int> end_times(EXPERIMENT_TRIALS);
-			auto experiment_pred = [r](SST_reads<Row>* sst) {
+			auto experiment_pred = [r](SST_reads<Row>& sst) {
 				for(int n = 0; n <= r; ++n) {
-					if((*sst)[n].data == 0) {
+					if(sst[n].data == 0) {
 						return false;
 					}
 				}
@@ -113,9 +113,9 @@ int main (int argc, char** argv) {
 			std::mt19937 engine;
 			for(int trial = 0; trial < EXPERIMENT_TRIALS; ++trial) {
 
-				auto done_action = [&end_times, trial](SST_reads<Row>* sst) {
+				auto done_action = [&end_times, trial](SST_reads<Row>& sst) {
 					end_times[trial] = experiments::get_realtime_clock();
-					(*sst)[sst->get_local_index()].data = 0;
+					sst[sst.get_local_index()].data = 0;
 				};
 				
 				sst.predicates.insert(experiment_pred, done_action, PredicateType::ONE_TIME);
@@ -158,13 +158,13 @@ int main (int argc, char** argv) {
 
 				if(this_node_rank == r) {
 					//Predicate to detect that node 0 is ready to start the experiment
-					auto start_pred = [](SST_reads<Row>* sst) {
-						return (*sst)[0].data == 1;
+					auto start_pred = [](SST_reads<Row>& sst) {
+						return sst[0].data == 1;
 					};
 
 					//Change this node's value to 1 in response
-					auto start_react = [](SST_reads<Row>* sst) {
-						(*sst)[sst->get_local_index()].data = 1;
+					auto start_react = [](SST_reads<Row>& sst) {
+						sst[sst.get_local_index()].data = 1;
 					};
 					sst.predicates.insert(start_pred, start_react, PredicateType::ONE_TIME);
 				}

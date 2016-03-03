@@ -134,17 +134,17 @@ int main (int argc, char** argv) {
 
 
   //Predicate: If any links change that might invalidate our existing path choices
-  auto predicate = [&links_used, &linkstate_snapshot] (SST_writes<LSDB_Row<RACK_SIZE>>* sst) {
+  auto predicate = [&links_used, &linkstate_snapshot] (SST_writes<LSDB_Row<RACK_SIZE>>& sst) {
 	  for (int source = 0; source < num_nodes; ++source) {
 		for (int target = 0; target < num_nodes; ++target) {
 			auto link = make_pair(source, target);
 			if(source != target && (
 					//A link we used got worse (more costly) than its last known state
 					(links_used.count(link) > 0 &&
-							(*sst)[source].link_cost[target] > linkstate_snapshot[source].link_cost[target])
+							sst[source].link_cost[target] > linkstate_snapshot[source].link_cost[target])
 					//A link we didn't use got better (less costly) than its last known state
 					|| (links_used.count(link) == 0 &&
-							(*sst)[source].link_cost[target] < linkstate_snapshot[source].link_cost[target]))) {
+							sst[source].link_cost[target] < linkstate_snapshot[source].link_cost[target]))) {
 				return true;
 			}
 		}
@@ -153,14 +153,14 @@ int main (int argc, char** argv) {
   };
 
   //Action: Recompute my local routing table
-  auto recompute_action = [&forwarding_table, &links_used, &linkstate_snapshot] (SST_writes<LSDB_Row<RACK_SIZE>>* sst) {
-	  linkstate_snapshot = sst->get_snapshot();
+  auto recompute_action = [&forwarding_table, &links_used, &linkstate_snapshot] (SST_writes<LSDB_Row<RACK_SIZE>>& sst) {
+	  linkstate_snapshot = sst.get_snapshot();
 	  compute_routing_table(this_node_rank, num_nodes, forwarding_table, links_used, linkstate_snapshot.get());
 	  //If the recompute was triggered by the experiment, not the reset...
 	  if(linkstate_snapshot[0].link_cost[1] == 10) {
 		  //Update the barrier
-		  (*sst)[sst->get_local_index()].barrier++;
-		  sst->put();
+		  sst[sst.get_local_index()].barrier++;
+		  sst.put();
 
 	  }
   };
@@ -183,9 +183,9 @@ int main (int argc, char** argv) {
 
 	  //Predicate to detect all nodes reaching the barrier
 	  int current_barrier_value = 1;
-	  auto barrier_pred = [&current_barrier_value] (SST_writes<LSDB_Row<RACK_SIZE>>* sst) {
+	  auto barrier_pred = [&current_barrier_value] (SST_writes<LSDB_Row<RACK_SIZE>>& sst) {
 		  for (int n = 0; n < num_nodes; ++n) {
-			  if((*sst)[n].barrier < current_barrier_value)
+			  if(sst[n].barrier < current_barrier_value)
 				  return false;
 		  }
 		  return true;
@@ -196,26 +196,26 @@ int main (int argc, char** argv) {
 	  for(int rep = 0; rep < experiment_reps; ++rep) {
 
 		  //Predicate to detect the first node reaching the barrier
-		  auto first_done_pred = [&current_barrier_value](SST_writes<LSDB_Row<RACK_SIZE>>* sst) {
+		  auto first_done_pred = [&current_barrier_value](SST_writes<LSDB_Row<RACK_SIZE>>& sst) {
 			  //Don't count node 0, it will finish instantly because there's no network communication
 			  for(int n = 1; n < num_nodes; ++n) {
-				  if((*sst)[n].barrier == current_barrier_value) {
+				  if(sst[n].barrier == current_barrier_value) {
 					  return true;
 				  }
 			  }
 			  return false;
 		  };
-		  auto first_done_action = [&current_barrier_value, &first_complete_times, rep] (SST_writes<LSDB_Row<RACK_SIZE>>* sst) {
+		  auto first_done_action = [&current_barrier_value, &first_complete_times, rep] (SST_writes<LSDB_Row<RACK_SIZE>>& sst) {
 			  first_complete_times[rep] = get_realtime_clock();
 		  };
-		  auto barrier_action = [&current_barrier_value, &end_times, rep] (SST_writes<LSDB_Row<RACK_SIZE>>* sst) {
+		  auto barrier_action = [&current_barrier_value, &end_times, rep] (SST_writes<LSDB_Row<RACK_SIZE>>& sst) {
 			  end_times[rep] = get_realtime_clock();
 			  current_barrier_value++;
 			  //Reset link values to initial state
-			  int local = sst->get_local_index();
-			  (*sst)[local].link_cost[1] = 1;
-			  (*sst)[local].link_cost[2] = 1;
-			  sst->put();
+			  int local = sst.get_local_index();
+			  sst[local].link_cost[1] = 1;
+			  sst[local].link_cost[2] = 1;
+			  sst.put();
 		  };
 		  //Launch predicates to monitor for the experiment completing
 		  linkstate_sst->predicates.insert(first_done_pred, first_done_action, sst::PredicateType::ONE_TIME);

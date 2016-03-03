@@ -94,12 +94,12 @@ int main () {
 
   // trigger is common to all nodes
   // transfers the token by increases its token_num
-  auto g = [node_rank, members, num_nodes] (SST_writes <Row> *sst) {
-      const int local = sst->get_local_index();
+  auto g = [node_rank, members, num_nodes] (SST_writes <Row> & sst) {
+      const int local = sst.get_local_index();
       // release the token
-          (*sst)[local].token_num++;
-          sst->put();
-          if ((*sst)[local].token_num == 1000) {
+          sst[local].token_num++;
+          sst.put();
+          if (sst[local].token_num == 1000) {
               cout << "Done" << endl;
               // sync before exiting
               if (node_rank == 0) {
@@ -120,10 +120,10 @@ int main () {
   
   if (node_rank == 0) {
     // node 0 detects if last round of token passing is complete and if so, in the trigger passes the next token
-    auto f = [pred_rank, pred_index, node_rank] (SST_writes <Row> *sst) {
-      cout << "predecessor's token value" << (*sst)[pred_index].token_num << endl;
+    auto f = [pred_rank, pred_index, node_rank] (SST_writes <Row>& sst) {
+      cout << "predecessor's token value" << sst[pred_index].token_num << endl;
       // checks if the predecssor has released the token
-      return (*sst)[pred_index].token_num == (*sst)[sst->get_local_index()].token_num;
+      return sst[pred_index].token_num == sst[sst.get_local_index()].token_num;
     };
 
     // register as a recurring predicate
@@ -131,10 +131,10 @@ int main () {
   }
   else {
     // the predicate, checks if it can grab the token
-    auto f = [pred_rank, pred_index, node_rank] (SST_writes <Row> *sst) {
-      cout << "predecessor's token value" << (*sst)[pred_index].token_num << endl;
+    auto f = [pred_rank, pred_index, node_rank] (SST_writes <Row>& sst) {
+      cout << "predecessor's token value" << sst[pred_index].token_num << endl;
       // checks if the predecssor has released the token
-      return (*sst)[pred_index].token_num > (*sst)[sst->get_local_index()].token_num;
+      return sst[pred_index].token_num > sst[sst.get_local_index()].token_num;
     };
 
     // register as a recurring predicate

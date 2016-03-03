@@ -36,9 +36,9 @@ enum class PredicateType {
 template<class Row>
 class Predicates_read {
 		/** Predicate type for SST-reads */
-        typedef function<bool(SST_reads<Row>*)> pred_read;
+        typedef function<bool(SST_reads<Row>&)> pred_read;
 		/** Trigger type for SST-reads */
-        typedef function<void(SST_reads<Row>*)> trig_read;
+        typedef function<void(SST_reads<Row>&)> trig_read;
         /** Type definition for a list of predicates, where each predicate is 
 		 * paired with a list of callbacks */
         typedef list<pair<pred_read, list<trig_read>>> pred_list_read;
@@ -64,9 +64,9 @@ class Predicates_read {
 template<class Row>
 class Predicates_write {
 		/** Predicate type for SST-writes */
-        typedef function<bool(SST_writes<Row>*)> pred_write;
+        typedef function<bool(SST_writes<Row>&)> pred_write;
 		/** Trigger type for SST-writes */
-        typedef function<void(SST_writes<Row>*)> trig_write;
+        typedef function<void(SST_writes<Row>&)> trig_write;
         /** Type definition for a list of predicates, where each predicate is 
 		 * paired with a list of callbacks */
         typedef list<pair<pred_write, list<trig_write>>> pred_list_write;

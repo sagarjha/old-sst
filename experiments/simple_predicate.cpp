@@ -63,12 +63,12 @@ int main () {
   // start the experiment
   for (int i = 0; i < num_times; ++i) {
     // the predicate. Detects if the remote entry is greater than 0
-    auto f = [r_index] (SST_writes <Row> *sst) {return (*sst)[r_index].a > 0;};
+    auto f = [r_index] (SST_writes <Row>& sst) {return sst[r_index].a > 0;};
     
     // the initiator node
     if (node_rank == 0) {
 	  // the trigger for the predicate. outputs time.
-	  auto g = [&end_times, i] (SST_writes <Row> *sst) {
+	  auto g = [&end_times, i] (SST_writes <Row>& sst) {
 		  end_times[i] = experiments::get_realtime_clock();
 	  };
 
@@ -90,9 +90,9 @@ int main () {
     // the helper node
     else {
       // the trigger for the predicate. sets own entry in response
-      auto g = [] (SST_writes <Row> *sst) {
-		  (*sst)[sst->get_local_index()].a = 1;
-		  sst->put();
+      auto g = [] (SST_writes <Row>& sst) {
+		  sst[sst.get_local_index()].a = 1;
+		  sst.put();
       };
 
       // register the predicate and the trigger

@@ -105,15 +105,15 @@ int main (int argc, char** argv) {
 
 
 	if(this_node_rank == TIMING_NODE) {
-		auto test_pred = [&r] (SST_writes<Row>* sst) {
+		auto test_pred = [&r] (SST_writes<Row>& sst) {
 			for(int n = 0; n <= r; ++n) {
-				if((*sst)[n].data != 0) {
+				if(sst[n].data != 0) {
 					return false;
 				}
 			}
 			return true;
 		};
-		auto count_action = [&count] (SST_writes<Row>* sst) {
+		auto count_action = [&count] (SST_writes<Row>& sst) {
 			++count;
 		};
 

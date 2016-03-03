@@ -39,16 +39,6 @@ static int num_nodes, this_node_rank;
 static const int EXPERIMENT_TRIALS = 10000;
 static const int TIMING_NODE = 0;
 
-void sync_with_all() {
-
-	for (int i = 0; i < num_nodes; ++i) {
-		if (i == this_node_rank) {
-			continue;
-		}
-		sst::tcp::sync(i);
-	}
-}
-
 int main (int argc, char** argv) {
 
 	using namespace sst;
@@ -98,15 +88,15 @@ int main (int argc, char** argv) {
 		sst[local].data[0] = 0;
 	}
 
-	sync_with_all();
+	sst.sync_with_members();
 
 	if(this_node_rank == TIMING_NODE) {
 		vector<long long int> start_times(EXPERIMENT_TRIALS);
 		vector<long long int> end_times(EXPERIMENT_TRIALS);
-		auto experiment_pred = [](SST_reads<BigRow>* sst) {
+		auto experiment_pred = [](SST_reads<BigRow>& sst) {
 			for(int n = 0; n < num_nodes; ++n) {
 				for(int i = 0; i < ROWSIZE; ++i) {
-					if((*sst)[n].data[i] == 0) {
+					if(sst[n].data[i] == 0) {
 						return false;
 					}
 				}
@@ -117,14 +107,14 @@ int main (int argc, char** argv) {
 		std::mt19937 engine;
 		for(int trial = 0; trial < EXPERIMENT_TRIALS; ++trial) {
 
-			auto done_action = [&end_times, trial](SST_reads<BigRow>* sst) {
+			auto done_action = [&end_times, trial](SST_reads<BigRow>& sst) {
 				end_times[trial] = experiments::get_realtime_clock();
-				(*sst)[sst->get_local_index()].data[0] = 0;
+				sst[sst.get_local_index()].data[0] = 0;
 			};
 
 			sst.predicates.insert(experiment_pred, done_action, PredicateType::ONE_TIME);
 			//Wait for everyone to be ready before starting
-			sync_with_all();
+			sst.sync_with_members();
 			long long int rand_time = wait_rand(engine);
 			experiments::busy_wait_for(rand_time);
 
@@ -139,7 +129,7 @@ int main (int argc, char** argv) {
 			}
 
 			//Let the remote nodes know they can proceed
-			sync_with_all();
+			sst.sync_with_members();
 		}
 
 		double mean, stdev;
@@ -161,19 +151,19 @@ int main (int argc, char** argv) {
 
 			if(this_node_rank == num_nodes-1) {
 				//Predicate to detect that node 0 is ready to start the experiment
-				auto start_pred = [](SST_reads<BigRow>* sst) {
-					return (*sst)[TIMING_NODE].data[0] == 1;
+				auto start_pred = [](SST_reads<BigRow>& sst) {
+					return sst[TIMING_NODE].data[0] == 1;
 				};
 
 				//Change this node's last value to 1 in response
-				auto start_react = [](SST_reads<BigRow>* sst) {
-					(*sst)[sst->get_local_index()].data[ROWSIZE-1] = 1;
+				auto start_react = [](SST_reads<BigRow>& sst) {
+					sst[sst.get_local_index()].data[ROWSIZE-1] = 1;
 				};
 				sst.predicates.insert(start_pred, start_react, PredicateType::ONE_TIME);
 			}
 
 			//Wait for everyone to be ready before starting
-			sync_with_all();
+			sst.sync_with_members();
 
 
 			//Wait for node 0 to finish the trial

@@ -97,17 +97,17 @@ int main (int argc, char** argv) {
 	sst->sync_with_members();
 
 
-	auto detect_load = [](SST_writes<Load_Row>* sst) {
+	auto detect_load = [](SST_writes<Load_Row>& sst) {
 		double sum = 0;
 		for(int n = 0; n < num_nodes; ++n) {
-			sum += (*sst)[n].avg_response_time;
+			sum += sst[n].avg_response_time;
 		}
 		return sum / num_nodes > RESPONSE_TIME_THRESHOLD;
 	};
 
-	auto react_to_load = [](SST_writes<Load_Row>* sst) {
-		if((*sst)[sst->get_local_index()].barrier == (*sst)[TIMING_NODE].barrier) {
-			(*sst)[sst->get_local_index()].barrier++;
+	auto react_to_load = [](SST_writes<Load_Row>& sst) {
+		if(sst[sst.get_local_index()].barrier == sst[TIMING_NODE].barrier) {
+			sst[sst.get_local_index()].barrier++;
 		}
 	};
 
@@ -119,10 +119,10 @@ int main (int argc, char** argv) {
 
 		//Predicate to detect all nodes reaching the barrier
 		int current_barrier_value = 1;
-		auto barrier_pred = [&current_barrier_value] (SST_writes<Load_Row>* sst) {
+		auto barrier_pred = [&current_barrier_value] (SST_writes<Load_Row>& sst) {
 			//Since node 0 is the master node, start checking at 1
 			for (int n = 1; n < num_nodes; ++n) {
-				if((*sst)[n].barrier < current_barrier_value)
+				if(sst[n].barrier < current_barrier_value)
 					return false;
 			}
 			return true;
@@ -133,17 +133,17 @@ int main (int argc, char** argv) {
 		for(int rep = 0; rep < experiment_reps; ++rep) {
 
 		  cout << "Starting experiment rep " << rep << endl;
-		  auto barrier_action = [&current_barrier_value, &end_times, rep] (SST_writes<Load_Row>* sst) {
+		  auto barrier_action = [&current_barrier_value, &end_times, rep] (SST_writes<Load_Row>& sst) {
 			  struct timespec end_time;
 			  clock_gettime(CLOCK_REALTIME, &end_time);
 			  end_times[rep] = end_time.tv_sec * SECONDS_TO_NS + end_time.tv_nsec;
 			  cout << "All nodes have reached barrier " << current_barrier_value << endl;
-			  const int me = sst->get_local_index();
+			  const int me = sst.get_local_index();
 			  //Reset load value
-			  (*sst)[me].avg_response_time = 100.0;
+			  sst[me].avg_response_time = 100.0;
 			  //Release barrier for other nodes
-			  (*sst)[me].barrier = current_barrier_value;
-			  sst->put();
+			  sst[me].barrier = current_barrier_value;
+			  sst.put();
 			  current_barrier_value++;
 		  };
 		  sst->predicates.insert(barrier_pred, barrier_action);
