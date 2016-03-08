@@ -77,7 +77,7 @@ int main (int argc, char** argv) {
 		group_members[i] = i;
 	}
 	// create a new shared state table with all the members
-	SST_reads<BigRow> sst(group_members, this_node_rank);
+	SST<BigRow, Mode::Reads> sst(group_members, this_node_rank);
 	const int local = sst.get_local_index();
 
 	//initialize
@@ -93,7 +93,7 @@ int main (int argc, char** argv) {
 	if(this_node_rank == TIMING_NODE) {
 		vector<long long int> start_times(EXPERIMENT_TRIALS);
 		vector<long long int> end_times(EXPERIMENT_TRIALS);
-		auto experiment_pred = [](SST_reads<BigRow>& sst) {
+		auto experiment_pred = [](SST<BigRow, Mode::Reads>& sst) {
 			for(int n = 0; n < num_nodes; ++n) {
 				for(int i = 0; i < ROWSIZE; ++i) {
 					if(sst[n].data[i] == 0) {
@@ -107,7 +107,7 @@ int main (int argc, char** argv) {
 		std::mt19937 engine;
 		for(int trial = 0; trial < EXPERIMENT_TRIALS; ++trial) {
 
-			auto done_action = [&end_times, trial](SST_reads<BigRow>& sst) {
+			auto done_action = [&end_times, trial](SST<BigRow, Mode::Reads>& sst) {
 				end_times[trial] = experiments::get_realtime_clock();
 				sst[sst.get_local_index()].data[0] = 0;
 			};
@@ -151,12 +151,12 @@ int main (int argc, char** argv) {
 
 			if(this_node_rank == num_nodes-1) {
 				//Predicate to detect that node 0 is ready to start the experiment
-				auto start_pred = [](SST_reads<BigRow>& sst) {
+				auto start_pred = [](SST<BigRow, Mode::Reads>& sst) {
 					return sst[TIMING_NODE].data[0] == 1;
 				};
 
 				//Change this node's last value to 1 in response
-				auto start_react = [](SST_reads<BigRow>& sst) {
+				auto start_react = [](SST<BigRow, Mode::Reads>& sst) {
 					sst[sst.get_local_index()].data[ROWSIZE-1] = 1;
 				};
 				sst.predicates.insert(start_pred, start_react, PredicateType::ONE_TIME);

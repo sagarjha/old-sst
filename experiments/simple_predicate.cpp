@@ -18,7 +18,7 @@ using std::string;
 using namespace sst;
 using namespace sst::tcp;
 
-struct Row {
+struct SimpleRow {
   int a;
 };
 
@@ -47,7 +47,7 @@ int main () {
   }
   
   // create a new shared state table with all the members
-  SST_writes<Row> *sst = new SST_writes<Row> (members, node_rank);
+  SST<SimpleRow, Mode::Writes> *sst = new SST<SimpleRow, Mode::Writes> (members, node_rank);
   const int local = sst->get_local_index();
 
   // there are only 2 nodes; r_index is the index of the remote node
@@ -63,12 +63,12 @@ int main () {
   // start the experiment
   for (int i = 0; i < num_times; ++i) {
     // the predicate. Detects if the remote entry is greater than 0
-    auto f = [r_index] (SST_writes <Row>& sst) {return sst[r_index].a > 0;};
+    auto f = [r_index] (SST<SimpleRow, Mode::Writes>& sst) {return sst[r_index].a > 0;};
     
     // the initiator node
     if (node_rank == 0) {
 	  // the trigger for the predicate. outputs time.
-	  auto g = [&end_times, i] (SST_writes <Row>& sst) {
+	  auto g = [&end_times, i] (SST<SimpleRow, Mode::Writes>& sst) {
 		  end_times[i] = experiments::get_realtime_clock();
 	  };
 
@@ -90,7 +90,7 @@ int main () {
     // the helper node
     else {
       // the trigger for the predicate. sets own entry in response
-      auto g = [] (SST_writes <Row>& sst) {
+      auto g = [] (SST<SimpleRow, Mode::Writes>& sst) {
 		  sst[sst.get_local_index()].a = 1;
 		  sst.put();
       };

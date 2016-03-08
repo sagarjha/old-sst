@@ -36,7 +36,7 @@ using std::tie;
 using std::string;
 using std::unique_ptr;
 
-using sst::SST_writes;
+using sst::SST;
 using sst::experiments::LSDB_Row;
 using sst::tcp::sync;
 
@@ -88,12 +88,12 @@ int main (int argc, char** argv) {
   }
 
   //Create the SST for link state
-  SST_writes<LSDB_Row<RACK_SIZE>>* linkstate_sst = new SST_writes<LSDB_Row<RACK_SIZE>>(group_members, this_node_rank);
-  int me = linkstate_sst->get_local_index();
+  SST<LSDB_Row<RACK_SIZE>, sst::Mode::Writes> linkstate_sst(group_members, this_node_rank);
+  int me = linkstate_sst.get_local_index();
 
   //set all routers to non-connected at first
   for(int i = 0; i < num_nodes; ++i) {
-	  (*linkstate_sst)[me].link_cost[i] = -1;
+	  linkstate_sst[me].link_cost[i] = -1;
   }
   //read list of connected routers and costs
   int nodenum, cost;
@@ -102,31 +102,31 @@ int main (int argc, char** argv) {
 
   while(router_config_stream.peek() != EOF) {
 	  router_config_stream >> nodenum >> cost;
-	  (*linkstate_sst)[me].link_cost[nodenum] = cost;
+	  linkstate_sst[me].link_cost[nodenum] = cost;
 
   }
   router_config_stream.close();
 
   //Set my own cost to 0, then wait for the other nodes to be ready
-  (*linkstate_sst)[me].link_cost[this_node_rank] = 0;
-  (*linkstate_sst)[me].barrier = 0;
-  linkstate_sst->put();
+  linkstate_sst[me].link_cost[this_node_rank] = 0;
+  linkstate_sst[me].barrier = 0;
+  linkstate_sst.put();
 
   bool done = false;
   while (!done) {
 	  done = true;
 	  for (int i = 0; i < num_nodes; ++i) {
-		  if ((*linkstate_sst)[i].link_cost[i] != 0) {
+		  if (linkstate_sst[i].link_cost[i] != 0) {
 			  done = false;
 		  }
 	  }
   }
-  linkstate_sst->sync_with_members();
+  linkstate_sst.sync_with_members();
 
   //Node-local state variables:
   vector<int> forwarding_table(num_nodes);
   unordered_set<pair<int, int>> links_used;
-  unique_ptr<const LSDB_Row<RACK_SIZE>[]> linkstate_snapshot = linkstate_sst->get_snapshot();
+  unique_ptr<const LSDB_Row<RACK_SIZE>[]> linkstate_snapshot = linkstate_sst.get_snapshot();
 
   //Compute initial routing table
   compute_routing_table(this_node_rank, num_nodes, forwarding_table, links_used, linkstate_snapshot.get());
@@ -134,7 +134,7 @@ int main (int argc, char** argv) {
 
 
   //Predicate: If any links change that might invalidate our existing path choices
-  auto predicate = [&links_used, &linkstate_snapshot] (SST_writes<LSDB_Row<RACK_SIZE>>& sst) {
+  auto predicate = [&links_used, &linkstate_snapshot] (SST<LSDB_Row<RACK_SIZE>>& sst) {
 	  for (int source = 0; source < num_nodes; ++source) {
 		for (int target = 0; target < num_nodes; ++target) {
 			auto link = make_pair(source, target);
@@ -153,7 +153,7 @@ int main (int argc, char** argv) {
   };
 
   //Action: Recompute my local routing table
-  auto recompute_action = [&forwarding_table, &links_used, &linkstate_snapshot] (SST_writes<LSDB_Row<RACK_SIZE>>& sst) {
+  auto recompute_action = [&forwarding_table, &links_used, &linkstate_snapshot] (SST<LSDB_Row<RACK_SIZE>>& sst) {
 	  linkstate_snapshot = sst.get_snapshot();
 	  compute_routing_table(this_node_rank, num_nodes, forwarding_table, links_used, linkstate_snapshot.get());
 	  //If the recompute was triggered by the experiment, not the reset...
@@ -167,10 +167,10 @@ int main (int argc, char** argv) {
 
 
   //Start the predicates
-  linkstate_sst->predicates.insert(predicate, recompute_action, sst::PredicateType::RECURRENT);
+  linkstate_sst.predicates.insert(predicate, recompute_action, sst::PredicateType::RECURRENT);
 
   //Barrier before starting the experiment
-  linkstate_sst->sync_with_members();
+  linkstate_sst.sync_with_members();
   //Warm up the processor again
   busy_wait_for(0.5 * SECONDS_TO_NS);
 
@@ -183,7 +183,7 @@ int main (int argc, char** argv) {
 
 	  //Predicate to detect all nodes reaching the barrier
 	  int current_barrier_value = 1;
-	  auto barrier_pred = [&current_barrier_value] (SST_writes<LSDB_Row<RACK_SIZE>>& sst) {
+	  auto barrier_pred = [&current_barrier_value] (SST<LSDB_Row<RACK_SIZE>>& sst) {
 		  for (int n = 0; n < num_nodes; ++n) {
 			  if(sst[n].barrier < current_barrier_value)
 				  return false;
@@ -196,7 +196,7 @@ int main (int argc, char** argv) {
 	  for(int rep = 0; rep < experiment_reps; ++rep) {
 
 		  //Predicate to detect the first node reaching the barrier
-		  auto first_done_pred = [&current_barrier_value](SST_writes<LSDB_Row<RACK_SIZE>>& sst) {
+		  auto first_done_pred = [&current_barrier_value](SST<LSDB_Row<RACK_SIZE>>& sst) {
 			  //Don't count node 0, it will finish instantly because there's no network communication
 			  for(int n = 1; n < num_nodes; ++n) {
 				  if(sst[n].barrier == current_barrier_value) {
@@ -205,10 +205,10 @@ int main (int argc, char** argv) {
 			  }
 			  return false;
 		  };
-		  auto first_done_action = [&current_barrier_value, &first_complete_times, rep] (SST_writes<LSDB_Row<RACK_SIZE>>& sst) {
+		  auto first_done_action = [&current_barrier_value, &first_complete_times, rep] (SST<LSDB_Row<RACK_SIZE>>& sst) {
 			  first_complete_times[rep] = get_realtime_clock();
 		  };
-		  auto barrier_action = [&current_barrier_value, &end_times, rep] (SST_writes<LSDB_Row<RACK_SIZE>>& sst) {
+		  auto barrier_action = [&current_barrier_value, &end_times, rep] (SST<LSDB_Row<RACK_SIZE>>& sst) {
 			  end_times[rep] = get_realtime_clock();
 			  current_barrier_value++;
 			  //Reset link values to initial state
@@ -218,8 +218,8 @@ int main (int argc, char** argv) {
 			  sst.put();
 		  };
 		  //Launch predicates to monitor for the experiment completing
-		  linkstate_sst->predicates.insert(first_done_pred, first_done_action, sst::PredicateType::ONE_TIME);
-		  linkstate_sst->predicates.insert(barrier_pred, barrier_action, sst::PredicateType::ONE_TIME);
+		  linkstate_sst.predicates.insert(first_done_pred, first_done_action, sst::PredicateType::ONE_TIME);
+		  linkstate_sst.predicates.insert(barrier_pred, barrier_action, sst::PredicateType::ONE_TIME);
 
 		  //Wait a random amount of time, then change connection metrics
 		  long long int rand_time = wait_rand(engine);
@@ -228,15 +228,15 @@ int main (int argc, char** argv) {
 		  start_times[rep] = get_realtime_clock();
 		  //Make a change that's guaranteed to make everyone recompute their routing tables,
 		  //by making two of 0's links very slow
-		  (*linkstate_sst)[me].link_cost[1] = 10;
+		  linkstate_sst[me].link_cost[1] = 10;
 		  //Workaround for the edge-case of 3 nodes
 		  if(num_nodes == 3)
-			  (*linkstate_sst)[me].link_cost[2] = 5;
+			  linkstate_sst[me].link_cost[2] = 5;
 		  else
-			  (*linkstate_sst)[me].link_cost[2] = 10;
-		  linkstate_sst->put();
+			  linkstate_sst[me].link_cost[2] = 10;
+		  linkstate_sst.put();
 		  //wait for end-of-experiment reset
-		  while((*linkstate_sst)[me].link_cost[1] == 10) {
+		  while(linkstate_sst[me].link_cost[1] == 10) {
 
 		  }
 		  // wait a while for the reset link table to propagate
@@ -245,7 +245,7 @@ int main (int argc, char** argv) {
 	  }
 
 	  //Sync with the other nodes to let them finish
-	  linkstate_sst->sync_with_members();
+	  linkstate_sst.sync_with_members();
 
 	  double first_mean, first_stdev, whole_mean, whole_stdev;
 	  tie(whole_mean, whole_stdev) = compute_statistics(start_times, end_times);
@@ -270,7 +270,6 @@ int main (int argc, char** argv) {
 	  sync(TIMING_NODE);
   }
 
-  delete(linkstate_sst);
   return 0;
 }
 

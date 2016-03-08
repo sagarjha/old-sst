@@ -31,20 +31,34 @@ using std::map;
 using std::thread;
 using std::unique_ptr;
 
-template<class Row>
-class SST_reads;
-template<class Row>
-class SST_writes;
+/**
+ * Flag to determine whether an SST is implemented in reads mode or writes mode.
+ */
+enum class Mode {
+    /** In reads mode, the SST will continuously refresh the local copy of
+     * the table by posting one-sided reads to the remote nodes. */
+    Reads,
+    /** In writes mode, the SST waits for its local copy of the table to be
+     * updated by a one-sided write from a remote node, and each node is
+     * responsible for calling SST::put() to initiate this write after
+     * changing a variable in its local row. */
+    Writes
+};
 
 /**
- * The base SST object, containing common members and code.
+ * The SST object, representing a single shared state table.
+ *
+ * @tparam Row The type of the structure that will be used for each row in
+ * this SST
+ * @tparam ImplMode A {@link Mode} enum value indicating whether this SST will be
+ * implemented in Reads mode or Writes mode; default is Writes.
  */
-template<class Row>
+template<class Row, Mode ImplMode = Mode::Writes>
 class SST {
-        // struct must be a pod. In addition, it should not contain any pointer types
+        //Row struct must be POD. In addition, it should not contain any pointer types
         static_assert(std::is_pod<Row>::value, "Error! Row type must be POD.");
 
-    protected:
+    private:
         /** List of members in the group (values are node ranks). */
         vector<int> members;
         /** List of node ranks mapped to member index. */
@@ -55,8 +69,17 @@ class SST {
         int member_index;
         /** The actual structure containing shared state data. */
         unique_ptr<volatile Row[]> table;
+        /** RDMA resources vector, one for each member. */
+        vector<unique_ptr<resources>> res_vec;
         /** A flag to signal background threads to shut down; set to true during destructor calls. */
         bool thread_shutdown;
+        //Functions for background threads to run
+        /** Reads all the remote rows once by RDMA, if this SST is in Reads mode. */
+        void refresh_table();
+        /** Continuously refreshes all the remote rows, if this SST is in Reads mode. */
+        void read();
+        /** Continuously evaluates predicates to detect when they become true. */
+        void detect();
 
     public:
         SST(const vector<int> &_members, int _node_rank);
@@ -70,74 +93,20 @@ class SST {
         int get_local_index() const;
         /** Gets a snapshot of the table. */
         unique_ptr<const Row[]> get_snapshot() const;
-        /** Does a TCP sync with each member of the SST. */
-        void sync_with_members() const;
-};
-
-/** 
- * The "reads" version of the SST.
- */
-template<class Row>
-class SST_reads: public SST<Row> {
-        using SST<Row>::members;
-        using SST<Row>::members_by_rank;
-        using SST<Row>::num_members;
-        using SST<Row>::member_index;
-        using SST<Row>::table;
-        using SST<Row>::thread_shutdown;
-
-    private:
-        /** RDMA resources vector, one for each member. */
-        vector<unique_ptr<resources>> res_vec;
-
-    public:
-        /** Predicate management object for this SST. */
-        Predicates_read<Row> predicates;
-
-        SST_reads(const vector<int> &_members, int _node_rank);
-        virtual ~SST_reads();
-        /** Reads all the remote rows once by RDMA. */
-        void refresh_table();
-        /** Continuously refreshes all the remote rows. */
-        void read();
-        /** Continuously evaluates predicates to detect when they become true. */
-        void detect();
-};
-
-/**
- * The "writes" versions of the SST.
- */
-template<class Row>
-class SST_writes: public SST<Row> {
-        using SST<Row>::members;
-        using SST<Row>::members_by_rank;
-        using SST<Row>::num_members;
-        using SST<Row>::member_index;
-        using SST<Row>::table;
-        using SST<Row>::thread_shutdown;
-
-    private:
-        /** RDMA resources vector, one for each member. */
-        vector<unique_ptr<resources>> res_vec;
-
-    public:
-        /** Predicate management object for this SST. */
-        Predicates_write<Row> predicates;
-
-        /** Constructs an SST-writes instance. */
-        SST_writes(const vector<int> &_members, int _node_rank);
-        virtual ~SST_writes();
         /** Writes the local row to all remote nodes. */
         void put();
         /** Writes a contiguous subset of the local row to all remote nodes. */
         void put(long long int offset, long long int size);
-        /** Continuously evaluates predicates to detect when they become true. */
-        void detect();
+        /** Does a TCP sync with each member of the SST. */
+        void sync_with_members() const;
+
+        /** Predicate management object for this SST. */
+        Predicates<Row, ImplMode> predicates;
 };
 
 /** 
- * Base constructor for the state table; initializes parts of the SST object
- * that do not depend on whether we are using reads or writes.
+ * Constructs an SST instance, initializes RDMA resources, and spawns
+ * background threads.
  *
  * @param _members A vector of node ranks (IDs), each of which represents a
  * node participating in the SST. The order of nodes in this vector is the
@@ -145,10 +114,11 @@ class SST_writes: public SST<Row> {
  * @param _node_rank The node rank of the local node, i.e. the one on which
  * this code is running.
  */
-template<class Row>
-SST<Row>::SST(const vector<int> & _members, int _node_rank) :
+template<class Row, Mode ImplMode>
+SST<Row, ImplMode>::SST(const vector<int> & _members, int _node_rank) :
         members(_members.size()), num_members(_members.size()),
-        table(new Row[_members.size()]), thread_shutdown(false) {
+        table(new Row[_members.size()]), res_vec(num_members),
+        thread_shutdown(false) {
 
     // copy members and figure out the member_index 
     for (int i = 0; i < num_members; ++i) {
@@ -163,14 +133,56 @@ SST<Row>::SST(const vector<int> & _members, int _node_rank) :
         members_by_rank[members[sst_index]] = sst_index;
     }
 
+    //Static dispatch of implementation code based on the template parameter
+    if (ImplMode == Mode::Reads) {
+        // initialize each element of res_vec
+        int node_rank, sst_index;
+        for (auto const& rank_index : members_by_rank) {
+            std::tie(node_rank, sst_index) = rank_index;
+            if (sst_index != member_index) {
+                // exchange lkey and addr of the table via tcp for enabling rdma reads
+                res_vec[sst_index] = std::make_unique<resources>(node_rank,
+                        (char *) &(table[member_index]),
+                        (char *) &(table[sst_index]), sizeof(table[0]),
+                        sizeof(table[0]));
+            }
+        }
+
+        // create the reader and the detector thread
+        thread reader(&SST::read, this);
+        thread detector(&SST::detect, this);
+        reader.detach();
+        detector.detach();
+
+        cout << "Initialized SST and Started Threads" << endl;
+    } else {
+        // initialize each element of res_vec
+        int node_rank, sst_index;
+        for (auto const& rank_index : members_by_rank) {
+            std::tie(node_rank, sst_index) = rank_index;
+            if (sst_index != member_index) {
+                // exchange lkey and addr of the table via tcp for enabling rdma writes
+                res_vec[sst_index] = std::make_unique<resources>(node_rank,
+                        (char *) &(table[sst_index]),
+                        (char *) &(table[member_index]), sizeof(table[0]),
+                        sizeof(table[0]));
+            }
+        }
+
+        thread detector(&SST::detect, this);
+        detector.detach();
+
+        cout << "Initialized SST and Started Threads" << endl;
+    }
+
 }
 
 /**
- * Base destructor for the state table; sets thread_shutdown to true so that
+ * Destructor for the state table; sets thread_shutdown to true so that
  * detached background threads exit cleanly.
  */
-template<class Row>
-SST<Row>::~SST() {
+template<class Row, Mode ImplMode>
+SST<Row, ImplMode>::~SST() {
     thread_shutdown = true;
 }
 
@@ -183,8 +195,8 @@ SST<Row>::~SST() {
  * @param index The index of the row to access.
  * @return A reference to the row structure stored at the requested row.
  */
-template<class Row>
-volatile Row & SST<Row>::get(int index) {
+template<class Row, Mode ImplMode>
+volatile Row & SST<Row, ImplMode>::get(int index) {
     // check that the index is within range
     assert(index >= 0 && index < num_members);
 
@@ -195,16 +207,16 @@ volatile Row & SST<Row>::get(int index) {
 /**
  * Simply calls the get function.
  */
-template<class Row>
-volatile Row & SST<Row>::operator [](int index) {
+template<class Row, Mode ImplMode>
+volatile Row & SST<Row, ImplMode>::operator [](int index) {
     return get(index);
 }
 
 /**
  * @return The number of rows in the table.
  */
-template<class Row>
-int SST<Row>::get_num_rows() const {
+template<class Row, Mode ImplMode>
+int SST<Row, ImplMode>::get_num_rows() const {
     return num_members;
 }
 
@@ -215,8 +227,8 @@ int SST<Row>::get_num_rows() const {
  *
  * @return The index of the local row.
  */
-template<class Row>
-int SST<Row>::get_local_index() const {
+template<class Row, Mode ImplMode>
+int SST<Row, ImplMode>::get_local_index() const {
     return member_index;
 }
 
@@ -226,8 +238,8 @@ int SST<Row>::get_local_index() const {
  *
  * @return A copy of all the SST's rows in their current state.
  */
-template<class Row>
-unique_ptr<const Row[]> SST<Row>::get_snapshot() const {
+template<class Row, Mode ImplMode>
+unique_ptr<const Row[]> SST<Row, ImplMode>::get_snapshot() const {
     Row* copy = new Row[num_members];
     std::memcpy(copy, const_cast<const Row*>(table.get()), num_members * sizeof(Row));
     return unique_ptr<const Row[]>(copy);
@@ -240,8 +252,8 @@ unique_ptr<const Row[]> SST<Row>::get_snapshot() const {
  * and should be called after SST initialization to ensure all nodes have
  * finished initializing their local SST code.
  */
-template<class Row>
-void SST<Row>::sync_with_members() const {
+template<class Row, Mode ImplMode>
+void SST<Row, ImplMode>::sync_with_members() const {
     int node_rank, sst_index;
     for (auto const& rank_index : members_by_rank) {
         std::tie(node_rank, sst_index) = rank_index;
@@ -251,75 +263,42 @@ void SST<Row>::sync_with_members() const {
     }
 }
 
-/**
- * Constructs an SST-reads instance, initializes RDMA resources, and spawns
- * background threads.
- *
- * @copydetails SST::SST()
- */
-template<class Row>
-SST_reads<Row>::SST_reads(const vector<int> & _members, int _node_rank) :
-        SST<Row>(_members, _node_rank), res_vec(num_members) {
 
-    // initialize each element of res_vec
-    int node_rank, sst_index;
-    for (auto const& rank_index : members_by_rank) {
-        std::tie(node_rank, sst_index) = rank_index;
-        if (sst_index != member_index) {
-            // exchange lkey and addr of the table via tcp for enabling rdma reads
-            res_vec[sst_index] = std::make_unique<resources>(node_rank,
-                    (char *) &(table[member_index]),
-                    (char *) &(table[sst_index]), sizeof(table[0]),
-                    sizeof(table[0]));
+/**
+ * If this SST is in Writes mode, this function does nothing.
+ */
+template<class Row, Mode ImplMode>
+void SST<Row, ImplMode>::refresh_table() {
+    if (ImplMode == Mode::Reads) {
+        for (int index = 0; index < num_members; ++index) {
+            if (index == member_index) {
+                // don't read own row!
+                continue;
+            }
+            // perform a remote RDMA read on the owner of the row
+            res_vec[index]->post_remote_read(sizeof(table[0]));
+        }
+        // poll for one less than number of rows
+        for (int index = 0; index < num_members - 1; ++index) {
+            // poll for completion
+            verbs_poll_completion();
         }
     }
-
-    // create the reader and the detector thread
-    thread reader(&SST_reads::read, this);
-    thread detector(&SST_reads::detect, this);
-    reader.detach();
-    detector.detach();
-
-    cout << "Initialized SST and Started Threads" << endl;
 }
 
 /**
- * Destructor. Currently empty. All cleanup is automatic.
+ * If this SST is in Reads mode, this function is run in a detached background
+ * thread to continuously keep the local SST table updated. If this SST is in
+ * Writes mode, this function does nothing.
  */
-template<class Row>
-SST_reads<Row>::~SST_reads() {
-}
-
-/**
- *
- */
-template<class Row>
-void SST_reads<Row>::refresh_table() {
-    for (int index = 0; index < num_members; ++index) {
-        if (index == member_index) {
-            // don't read own row!
-            continue;
+template<class Row, Mode ImplMode>
+void SST<Row, ImplMode>::read() {
+    if(ImplMode == Mode::Reads) {
+        while (!thread_shutdown) {
+            refresh_table();
         }
-        // perform a remote RDMA read on the owner of the row
-        res_vec[index]->post_remote_read(sizeof(table[0]));
+        cout << "Reader thread shutting down" << endl;
     }
-    // poll for one less than number of rows
-    for (int index = 0; index < num_members - 1; ++index) {
-        // poll for completion
-        verbs_poll_completion();
-    }
-}
-
-/**
- * This function is run in a detached background thread to continuously keep
- * the local SST table updated.
- */
-template<class Row>
-void SST_reads<Row>::read() {
-    while (!thread_shutdown) {
-        refresh_table();
-    }
-    cout << "Reader thread shutting down" << endl;
 }
 
 /**
@@ -327,8 +306,8 @@ void SST_reads<Row>::read() {
  * events. It continuously evaluates predicates one by one, and runs the
  * trigger functions for each predicate that fires.
  */
-template<class Row>
-void SST_reads<Row>::detect() {
+template<class Row, Mode ImplMode>
+void SST<Row, ImplMode>::detect() {
     while (!thread_shutdown) {
         // one time predicates need to be evaluated only until they become true
         auto pred_it = predicates.one_time_predicates.begin();
@@ -375,59 +354,26 @@ void SST_reads<Row>::detect() {
 }
 
 /**
- * Constructs an SST-writes instance, initializes RDMA resources, and spawns
- * background threads.
- *
- * @copydetails SST::SST()
- */
-template<class Row>
-SST_writes<Row>::SST_writes(const vector<int> & _members, int _node_rank) :
-        SST<Row>(_members, _node_rank), res_vec(num_members) {
-
-    // initialize each element of res_vec
-    int node_rank, sst_index;
-    for (auto const& rank_index : members_by_rank) {
-        std::tie(node_rank, sst_index) = rank_index;
-        if (sst_index != member_index) {
-            // exchange lkey and addr of the table via tcp for enabling rdma writes
-            res_vec[sst_index] = std::make_unique<resources>(node_rank,
-                    (char *) &(table[sst_index]),
-                    (char *) &(table[member_index]), sizeof(table[0]),
-                    sizeof(table[0]));
-        }
-    }
-
-    thread detector(&SST_writes::detect, this);
-    detector.detach();
-
-    cout << "Initialized SST and Started Threads" << endl;
-}
-
-/**
- * Destructor. Currently empty. All cleanup is automatic.
- */
-template<class Row>
-SST_writes<Row>::~SST_writes() {
-}
-
-/**
  * This writes the entire local row, using a one-sided RDMA write, to all of
- * the other members of the SST group.
+ * the other members of the SST group. If this SST is in Reads mode, this
+ * function does nothing.
  */
-template<class Row>
-void SST_writes<Row>::put() {
-    for (int index = 0; index < num_members; ++index) {
-        if (index == member_index) {
-            // don't write to yourself!
-            continue;
+template<class Row, Mode ImplMode>
+void SST<Row, ImplMode>::put() {
+    if (ImplMode == Mode::Writes) {
+        for (int index = 0; index < num_members; ++index) {
+            if (index == member_index) {
+                // don't write to yourself!
+                continue;
+            }
+            // perform a remote RDMA write on the owner of the row
+            res_vec[index]->post_remote_write(sizeof(table[0]));
         }
-        // perform a remote RDMA write on the owner of the row
-        res_vec[index]->post_remote_write(sizeof(table[0]));
-    }
-    // poll for one less than number of rows
-    for (int index = 0; index < num_members - 1; ++index) {
-        // poll for completion
-        verbs_poll_completion();
+        // poll for one less than number of rows
+        for (int index = 0; index < num_members - 1; ++index) {
+            // poll for completion
+            verbs_poll_completion();
+        }
     }
 }
 
@@ -439,77 +385,31 @@ void SST_writes<Row>::put() {
  *
  *     sst_instance.put(offsetof(RowType, item), sizeof(item));
  *
+ * If this SST is in Reads mode, this function does nothing.
  *
  * @param offset The offset, within the Row structure, of the region of the
  * row to write
  * @param size The number of bytes to write, starting at the offset.
  */
-template<class Row>
-void SST_writes<Row>::put(long long int offset, long long int size) {
-    for (int index = 0; index < num_members; ++index) {
-        if (index == member_index) {
-            // don't write to yourself!
-            continue;
-        }
-        // perform a remote RDMA write on the owner of the row
-        res_vec[index]->post_remote_write(offset, size);
-    }
-    // poll for one less than number of rows
-    for (int index = 0; index < num_members - 1; ++index) {
-        // poll for completion
-        verbs_poll_completion();
-    }
-}
-
-/**
- * @copydetails SST_reads::detect()
- */
-template<class Row>
-void SST_writes<Row>::detect() {
-    while (!thread_shutdown) {
-        // one time predicates need to be evaluated only until they become true
-        auto pred_it = predicates.one_time_predicates.begin();
-        while (pred_it != predicates.one_time_predicates.end()) {
-            if (pred_it->first(*this) == true) {
-                for (auto func : pred_it->second) {
-                    func(*this);
-                }
-                pred_it = predicates.one_time_predicates.erase(pred_it);
-            } else {
-                pred_it++;
+template<class Row, Mode ImplMode>
+void SST<Row, ImplMode>::put(long long int offset, long long int size) {
+    if (ImplMode == Mode::Writes) {
+        for (int index = 0; index < num_members; ++index) {
+            if (index == member_index) {
+                // don't write to yourself!
+                continue;
             }
+            // perform a remote RDMA write on the owner of the row
+            res_vec[index]->post_remote_write(offset, size);
         }
-
-        // recurrent predicates are evaluated each time they are found to be true
-        for (pred_it = predicates.recurrent_predicates.begin();
-                pred_it != predicates.recurrent_predicates.end(); ++pred_it) {
-            if (pred_it->first(*this) == true) {
-                for (auto func : pred_it->second) {
-                    func(*this);
-                }
-            }
-        }
-
-        // transition predicates are only evaluated when they change from false to true
-        pred_it = predicates.transition_predicates.begin();
-        auto pred_state_it = predicates.transition_predicate_states.begin();
-        while (pred_it != predicates.transition_predicates.end()) {
-            //*pred_state_it is the previous state of the predicate at *pred_it
-            bool curr_pred_state = pred_it->first(*this);
-            if (curr_pred_state == true && *pred_state_it == false) {
-                for (auto func : pred_it->second) {
-                    func(*this);
-                }
-            }
-            *pred_state_it = curr_pred_state;
-
-            ++pred_it;
-            ++pred_state_it;
+        // poll for one less than number of rows
+        for (int index = 0; index < num_members - 1; ++index) {
+            // poll for completion
+            verbs_poll_completion();
         }
     }
-    cout << "Predicate detection thread shutting down" << endl;
 }
 
 } /* namespace sst */
 
-#endif /* SST_WRITE_H */
+#endif /* SST_H */

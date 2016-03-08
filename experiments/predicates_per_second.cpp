@@ -17,8 +17,8 @@ using std::ofstream;
 using std::ifstream;
 using std::tie;
 
-struct Row {
-  volatile int data;
+struct TestRow {
+  volatile int flag;
 };
 
 namespace sst {
@@ -86,12 +86,12 @@ int main (int argc, char** argv) {
 	}
 
 	// create a new shared state table with all the members
-	SST_writes<Row>* sst = new SST_writes<Row> (group_members, this_node_rank);
+	SST<TestRow>* sst = new SST<TestRow> (group_members, this_node_rank);
 	const int local = sst->get_local_index();
 	if(this_node_rank == TIMING_NODE) {
-		(*sst)[local].data = 1;
+		(*sst)[local].flag = 1;
 	} else {
-		(*sst)[local].data = 0;
+		(*sst)[local].flag = 0;
 	}
 	sst->put();
 
@@ -105,15 +105,15 @@ int main (int argc, char** argv) {
 
 
 	if(this_node_rank == TIMING_NODE) {
-		auto test_pred = [&r] (SST_writes<Row>& sst) {
+		auto test_pred = [&r] (SST<TestRow>& sst) {
 			for(int n = 0; n <= r; ++n) {
-				if(sst[n].data != 0) {
+				if(sst[n].flag != 0) {
 					return false;
 				}
 			}
 			return true;
 		};
-		auto count_action = [&count] (SST_writes<Row>& sst) {
+		auto count_action = [&count] (SST<TestRow>& sst) {
 			++count;
 		};
 
@@ -128,11 +128,11 @@ int main (int argc, char** argv) {
 			count = 0;
 			
 			//Trigger the predicate to start being true by setting my own value to 0
-			(*sst)[local].data = 0;
+			(*sst)[local].flag = 0;
 			long long int start_time = experiments::get_realtime_clock();
 			experiments::busy_wait_for(100000000);
 			//Stop the predicate by setting my value to 1
-			(*sst)[local].data = 1;
+			(*sst)[local].flag = 1;
 			long long int end_time = experiments::get_realtime_clock();
 
 			long long int actual_run_time = end_time-start_time;

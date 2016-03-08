@@ -19,7 +19,7 @@ using namespace sst;
 using sst::tcp::tcp_initialize;
 using sst::tcp::sync;
 
-struct Row {
+struct TestRow {
   int a;
 };
 
@@ -56,7 +56,7 @@ int main () {
   }
   
   // create a new shared state table with all the members
-  SST_reads<Row> *sst = new SST_reads<Row> (members, node_rank);
+  SST<TestRow, Mode::Reads> *sst = new SST<TestRow, Mode::Reads> (members, node_rank);
   (*sst)[sst->get_local_index()].a = 0;
 
   bool if_exit = false;
@@ -80,7 +80,7 @@ int main () {
   struct timespec start_time;
   
   // the predicate
-  auto f = [num_nodes] (SST_reads<Row>& sst) {
+  auto f = [num_nodes] (SST<TestRow, Mode::Reads>& sst) {
     for (int i = 0; i < num_nodes; ++i) {
       if (sst[i].a < sst[LOCAL].a) {
 	return false;
@@ -90,7 +90,7 @@ int main () {
   };
 
   // trigger. Increments self value
-  auto g = [&start_time] (SST_reads<Row>& sst) {
+  auto g = [&start_time] (SST<TestRow, Mode::Reads>& sst) {
     ++(sst[LOCAL].a);
     if (sst[LOCAL].a == 1000000) {
       // end timer

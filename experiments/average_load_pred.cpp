@@ -78,7 +78,7 @@ int main (int argc, char** argv) {
 		group_members[i] = i;
 	}
 
-	SST_writes<Load_Row>* sst = new SST_writes<Load_Row>(group_members, this_node_rank);
+	SST<Load_Row, Mode::Writes>* sst = new SST<Load_Row, Mode::Writes>(group_members, this_node_rank);
 	const int local = sst->get_local_index();
 	//Initialize the SST
 	(*sst)[local].avg_response_time = 100.0;
@@ -97,7 +97,7 @@ int main (int argc, char** argv) {
 	sst->sync_with_members();
 
 
-	auto detect_load = [](SST_writes<Load_Row>& sst) {
+	auto detect_load = [](SST<Load_Row, Mode::Writes>& sst) {
 		double sum = 0;
 		for(int n = 0; n < num_nodes; ++n) {
 			sum += sst[n].avg_response_time;
@@ -105,7 +105,7 @@ int main (int argc, char** argv) {
 		return sum / num_nodes > RESPONSE_TIME_THRESHOLD;
 	};
 
-	auto react_to_load = [](SST_writes<Load_Row>& sst) {
+	auto react_to_load = [](SST<Load_Row, Mode::Writes>& sst) {
 		if(sst[sst.get_local_index()].barrier == sst[TIMING_NODE].barrier) {
 			sst[sst.get_local_index()].barrier++;
 		}
@@ -119,7 +119,7 @@ int main (int argc, char** argv) {
 
 		//Predicate to detect all nodes reaching the barrier
 		int current_barrier_value = 1;
-		auto barrier_pred = [&current_barrier_value] (SST_writes<Load_Row>& sst) {
+		auto barrier_pred = [&current_barrier_value] (SST<Load_Row, Mode::Writes>& sst) {
 			//Since node 0 is the master node, start checking at 1
 			for (int n = 1; n < num_nodes; ++n) {
 				if(sst[n].barrier < current_barrier_value)
@@ -133,7 +133,7 @@ int main (int argc, char** argv) {
 		for(int rep = 0; rep < experiment_reps; ++rep) {
 
 		  cout << "Starting experiment rep " << rep << endl;
-		  auto barrier_action = [&current_barrier_value, &end_times, rep] (SST_writes<Load_Row>& sst) {
+		  auto barrier_action = [&current_barrier_value, &end_times, rep] (SST<Load_Row, Mode::Writes>& sst) {
 			  struct timespec end_time;
 			  clock_gettime(CLOCK_REALTIME, &end_time);
 			  end_times[rep] = end_time.tv_sec * SECONDS_TO_NS + end_time.tv_nsec;

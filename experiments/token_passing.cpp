@@ -15,7 +15,7 @@ using namespace sst;
 using sst::tcp::tcp_initialize;
 using sst::tcp::sync;
 
-struct Row {
+struct TokenRow {
   int token_num;
 };
 
@@ -73,7 +73,7 @@ int main () {
   int pred_rank = members[pred_index];
   int succ_rank = members[succ_index];
   // create a new shared state table with all the members
-  SST_writes<Row> *sst = new SST_writes<Row> (members, node_rank);
+  SST<TokenRow, Mode::Writes> *sst = new SST<TokenRow, Mode::Writes> (members, node_rank);
   (*sst)[sst->get_local_index()].token_num = 0;
   sst->put ();
   // sync before registering
@@ -94,7 +94,7 @@ int main () {
 
   // trigger is common to all nodes
   // transfers the token by increases its token_num
-  auto g = [node_rank, members, num_nodes] (SST_writes <Row> & sst) {
+  auto g = [node_rank, members, num_nodes] (SST<TokenRow, Mode::Writes> & sst) {
       const int local = sst.get_local_index();
       // release the token
           sst[local].token_num++;
@@ -120,7 +120,7 @@ int main () {
   
   if (node_rank == 0) {
     // node 0 detects if last round of token passing is complete and if so, in the trigger passes the next token
-    auto f = [pred_rank, pred_index, node_rank] (SST_writes <Row>& sst) {
+    auto f = [pred_rank, pred_index, node_rank] (SST<TokenRow, Mode::Writes>& sst) {
       cout << "predecessor's token value" << sst[pred_index].token_num << endl;
       // checks if the predecssor has released the token
       return sst[pred_index].token_num == sst[sst.get_local_index()].token_num;
@@ -131,7 +131,7 @@ int main () {
   }
   else {
     // the predicate, checks if it can grab the token
-    auto f = [pred_rank, pred_index, node_rank] (SST_writes <Row>& sst) {
+    auto f = [pred_rank, pred_index, node_rank] (SST<TokenRow, Mode::Writes>& sst) {
       cout << "predecessor's token value" << sst[pred_index].token_num << endl;
       // checks if the predecssor has released the token
       return sst[pred_index].token_num > sst[sst.get_local_index()].token_num;
