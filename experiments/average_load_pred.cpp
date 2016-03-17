@@ -110,7 +110,7 @@ int main (int argc, char** argv) {
 		}
 	};
 
-	sst->predicates->insert(detect_load, react_to_load);
+	sst->predicates.insert(detect_load, react_to_load);
 
 	if(this_node_rank == TIMING_NODE) {
 		int experiment_reps = 1000;
@@ -145,7 +145,7 @@ int main (int argc, char** argv) {
 			  sst.put();
 			  current_barrier_value++;
 		  };
-		  sst->predicates->insert(barrier_pred, barrier_action);
+		  sst->predicates.insert(barrier_pred, barrier_action);
 
 		  //Wait a random amount of time, then change the load reported to trigger the predicate
 		  long long int rand_time = wait_rand(engine);

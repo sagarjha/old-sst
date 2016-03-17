@@ -117,7 +117,7 @@ int main (int argc, char** argv) {
 			++count;
 		};
 
-		sst->predicates->insert(test_pred, count_action, PredicateType::RECURRENT);
+		sst->predicates.insert(test_pred, count_action, PredicateType::RECURRENT);
 	}
 
 	//Run the experiment for each value of R

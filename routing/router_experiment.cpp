@@ -166,7 +166,7 @@ int main (int argc, char** argv) {
 
 
   //Start the predicates
-  linkstate_sst.predicates->insert(predicate, recompute_action, sst::PredicateType::RECURRENT);
+  linkstate_sst.predicates.insert(predicate, recompute_action, sst::PredicateType::RECURRENT);
 
   //Barrier before starting the experiment
   linkstate_sst.sync_with_members();
@@ -217,8 +217,8 @@ int main (int argc, char** argv) {
 			  sst.put();
 		  };
 		  //Launch predicates to monitor for the experiment completing
-		  linkstate_sst.predicates->insert(first_done_pred, first_done_action, sst::PredicateType::ONE_TIME);
-		  linkstate_sst.predicates->insert(barrier_pred, barrier_action, sst::PredicateType::ONE_TIME);
+		  linkstate_sst.predicates.insert(first_done_pred, first_done_action, sst::PredicateType::ONE_TIME);
+		  linkstate_sst.predicates.insert(barrier_pred, barrier_action, sst::PredicateType::ONE_TIME);
 
 		  //Wait a random amount of time, then change connection metrics
 		  long long int rand_time = wait_rand(engine);

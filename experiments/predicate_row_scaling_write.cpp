@@ -120,7 +120,7 @@ int main (int argc, char** argv) {
 					sst.put();
 				};
 				
-				sst.predicates->insert(experiment_pred, done_action, PredicateType::ONE_TIME);
+				sst.predicates.insert(experiment_pred, done_action, PredicateType::ONE_TIME);
 				
 				//Wait for everyone to be ready before starting
 				sst.sync_with_members();
@@ -172,7 +172,7 @@ int main (int argc, char** argv) {
 						sst[sst.get_local_index()].data = 1;
 						sst.put();
 					};
-					sst.predicates->insert(start_pred, start_react, PredicateType::ONE_TIME);
+					sst.predicates.insert(start_pred, start_react, PredicateType::ONE_TIME);
 				}
 
 				//Wait for everyone to be ready before starting

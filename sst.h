@@ -195,7 +195,7 @@ class SST {
 
         class Predicates;
         /** Predicate management object for this SST. */
-        Predicates* predicates;
+        Predicates& predicates;
 };
 
 } /* namespace sst */

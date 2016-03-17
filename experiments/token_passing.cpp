@@ -127,7 +127,7 @@ int main () {
     };
 
     // register as a recurring predicate
-    sst->predicates->insert (f, g, PredicateType::RECURRENT);
+    sst->predicates.insert (f, g, PredicateType::RECURRENT);
   }
   else {
     // the predicate, checks if it can grab the token
@@ -138,7 +138,7 @@ int main () {
     };
 
     // register as a recurring predicate
-    sst->predicates->insert (f, g, PredicateType::RECURRENT);
+    sst->predicates.insert (f, g, PredicateType::RECURRENT);
   }
 
   // wait. trigger will exit after 1000 rounds of token passing

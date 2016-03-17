@@ -20,7 +20,7 @@ SST<Row, ImplMode, NameEnum, NamedFunctionTypePack>::SST(const vector<int> &_mem
                 members(_members.size()), num_members(_members.size()),
                 table(new InternalRow[_members.size()]), res_vec(num_members),
                 thread_shutdown(false),
-                predicates(new Predicates()){
+					predicates(*(new Predicates())){
 
             // copy members and figure out the member_index
             for (int i = 0; i < num_members; ++i) {
@@ -85,7 +85,7 @@ SST<Row, ImplMode, NameEnum, NamedFunctionTypePack>::SST(const vector<int> &_mem
 template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack>
 SST<Row, ImplMode, NameEnum, NamedFunctionTypePack>::~SST() {
     thread_shutdown = true;
-    delete predicates;
+    delete &predicates;
 }
 
 /** 
@@ -210,22 +210,22 @@ template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionType
 void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack>::detect() {
     while (!thread_shutdown) {
         // one time predicates need to be evaluated only until they become true
-        auto pred_it = predicates->one_time_predicates.begin();
-        while (pred_it != predicates->one_time_predicates.end()) {
+        auto pred_it = predicates.one_time_predicates.begin();
+        while (pred_it != predicates.one_time_predicates.end()) {
             if (pred_it->first(*this) == true) {
                 for (auto func : pred_it->second) {
                     func(*this);
                 }
                 // erase the predicate as it was just found to be true
-                pred_it = predicates->one_time_predicates.erase(pred_it);
+                pred_it = predicates.one_time_predicates.erase(pred_it);
             } else {
                 pred_it++;
             }
         }
 
         // recurrent predicates are evaluated each time they are found to be true
-        for (pred_it = predicates->recurrent_predicates.begin();
-                pred_it != predicates->recurrent_predicates.end(); ++pred_it) {
+        for (pred_it = predicates.recurrent_predicates.begin();
+                pred_it != predicates.recurrent_predicates.end(); ++pred_it) {
             if (pred_it->first(*this) == true) {
                 for (auto func : pred_it->second) {
                     func(*this);
@@ -234,9 +234,9 @@ void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack>::detect() {
         }
 
         // transition predicates are only evaluated when they change from false to true
-        pred_it = predicates->transition_predicates.begin();
-        auto pred_state_it = predicates->transition_predicate_states.begin();
-        while (pred_it != predicates->transition_predicates.end()) {
+        pred_it = predicates.transition_predicates.begin();
+        auto pred_state_it = predicates.transition_predicate_states.begin();
+        while (pred_it != predicates.transition_predicates.end()) {
             //*pred_state_it is the previous state of the predicate at *pred_it
             bool curr_pred_state = pred_it->first(*this);
             if (curr_pred_state == true && *pred_state_it == false) {
