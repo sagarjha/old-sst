@@ -8,7 +8,6 @@
 #include <vector>
 #include <cstddef>
 
-#include "../predicates.h"
 #include "../sst.h"
 #include "../tcp.h"
 #include "../verbs.h"
@@ -114,7 +113,7 @@ int main (int argc, char** argv) {
 				sst.put(offsetof(BigRow, data[0]), sizeof(int));
 			};
 
-			sst->predicates.insert(experiment_pred, done_action, PredicateType::ONE_TIME);
+			sst->predicates->insert(experiment_pred, done_action, PredicateType::ONE_TIME);
 			//Wait for everyone to be ready before starting
 			sst->sync_with_members();
 			long long int rand_time = wait_rand(engine);
@@ -164,7 +163,7 @@ int main (int argc, char** argv) {
 					sst[sst.get_local_index()].data[ROWSIZE-1] = 1;
 					sst.put(offsetof(BigRow, data[ROWSIZE-1]), sizeof(int));
 				};
-				sst->predicates.insert(start_pred, start_react, PredicateType::ONE_TIME);
+				sst->predicates->insert(start_pred, start_react, PredicateType::ONE_TIME);
 			}
 
 			//Wait for everyone to be ready before starting

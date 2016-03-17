@@ -153,7 +153,7 @@ int main () {
   clock_gettime(CLOCK_REALTIME, &start_time);
   
   // register as a recurring predicate
-  sst->predicates.insert (f, g, PredicateType::RECURRENT);
+  sst->predicates->insert (f, g, PredicateType::RECURRENT);
 
   while (true) {
     

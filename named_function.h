@@ -1,0 +1,54 @@
+#ifndef NAMED_FUNCTION_H_
+#define NAMED_FUNCTION_H_
+
+#include <type_traits>
+#include <functional>
+#include "args-finder.hpp"
+
+namespace sst {
+
+
+/**
+ * Represents a named function over an SST; the function should take a
+ * reference to SST as its argument, and have a name chosen from a user-defined
+ * enum.
+ *
+ * @tparam NameEnum The enum type that will be used to name this function
+ * @tparam Name The name of this function (which is an enum member)
+ * @tparam Ret The return type of this function, which must be POD because it
+ * will be stored in an SST row.
+ */
+template<typename NameEnum, NameEnum Name, typename Param, typename Ret>
+struct NamedFunction {
+    static_assert(std::is_pod<Ret>::value, "Error: only POD return types");
+    Ret (*fun) (Param&);
+    using ret_t = Ret;
+    static constexpr NameEnum name = Name;
+};
+
+/**
+ * Helper for the "make_named_function" macro, which constructs a named function.
+ * This helps hide the template parameters.
+ * @param fun A pointer to the function to name.
+ * @return A NamedFunction wrapping the given function.
+ */
+template<typename NameEnum, NameEnum Name, typename Param, typename F>
+auto build_named_function(F fun){
+    using R = std::result_of_t<F(Param&)>;
+    return NamedFunction<NameEnum,Name,Param,R>{fun};
+}
+
+/**
+ * Constructs a NamedFunction, using the first argument as the name and the
+ * second argument as the function.
+ *
+ * @param name The name of the function; must be an enum member
+ * @param fun The function to name
+ * @return A NamedFunction wrapping the given function and associating it with
+ * the given name
+ */
+#define make_named_function(name,fun...) build_named_function<decltype(name),name>(util::convert_fp(fun))
+
+}
+
+#endif /* NAMED_FUNCTION_H_ */

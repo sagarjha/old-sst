@@ -5,16 +5,13 @@
 #include <list>
 #include <utility>
 
+#include "sst.h"
+
 namespace sst {
 
 using std::function;
 using std::list;
 using std::pair;
-
-//Forward declarations so SST can be used, even though this header is included by sst.h
-enum class Mode;
-template<class Row, Mode ImplMode>
-class SST;
 
 /** Enumeration defining the kinds of predicates an SST can handle. */
 enum class PredicateType {
@@ -28,6 +25,10 @@ enum class PredicateType {
 	TRANSITION
 };
 
+enum class Mode;
+template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack>
+class SST;
+
 /**
  * Predicates container for SST. The template parameters must match the SST for
  * which the predicates are being used.
@@ -37,15 +38,15 @@ enum class PredicateType {
  * @tparam Mode A {@link Mode} enum value indicating whether the SST is in
  * Reads mode or Writes mode
  */
-template<class Row, Mode Mode>
-class Predicates {
+template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack>
+class SST<Row, ImplMode, NameEnum, NamedFunctionTypePack>::Predicates {
 		/** Type definition for a predicate: a boolean function that takes an SST as input. */
-        typedef function<bool(SST<Row, Mode>&)> pred;
+        using pred = function<bool(SST&)>;
 		/** Type definition for a trigger: a void function that takes an SST as input. */
-        typedef function<void(SST<Row, Mode>&)> trig;
+        using trig = function<void(SST&)>;
         /** Type definition for a list of predicates, where each predicate is 
 		 * paired with a list of callbacks */
-        typedef list<pair<pred, list<trig>>> pred_list;
+        using pred_list = list<pair<pred, list<trig>>>;
 
     public:
 		/** Predicate list for one-time predicates. */
@@ -73,9 +74,8 @@ class Predicates {
  * @param type The type of predicate being inserted; default is 
  * PredicateType::ONE_TIME
  */
-template<class Row, Mode Mode>
-void Predicates<Row, Mode>::insert(pred predicate, trig trigger,
-        PredicateType type) {
+template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack>
+void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack>::Predicates::insert(pred predicate, trig trigger, PredicateType type) {
     list<trig> g_list;
     g_list.push_back(trigger);
     if (type == PredicateType::ONE_TIME) {

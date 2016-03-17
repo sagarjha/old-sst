@@ -1,5 +1,5 @@
 src=dijkstra.cpp routing.cpp ../verbs.cpp ../tcp.cpp ../experiments/statistics.cpp ../experiments/timing.cpp
-hdr=lsdb_row.h dijkstra.h routing.h std_hashes.h ../verbs.h ../tcp.h ../sst.h ../predicates.h ../experiments/statistics.h ../experiments/timing.h
+hdr=lsdb_row.h dijkstra.h routing.h std_hashes.h ../verbs.h ../tcp.h ../sst.h ../predicates.h ../named_function.h ../util.h ../args-finder.hpp ../experiments/statistics.h ../experiments/timing.h
 options=-lrdmacm -libverbs -lrt -lpthread -O1 -g -Wall -Wno-unused-function -Wno-unused-variable -fno-omit-frame-pointer -Wno-unused-but-set-variable -Wno-unused-result
 binaries=router_experiment
 

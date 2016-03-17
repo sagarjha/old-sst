@@ -73,7 +73,7 @@ int main () {
 	  };
 
       // register the predicate and the trigger
-      sst->predicates.insert (f, g, PredicateType::ONE_TIME);
+      sst->predicates->insert (f, g, PredicateType::ONE_TIME);
 
       // wait for random time
       long long int rand_time = (long long int) 2e6 + 1 + rand() % (long long int) 6e5;
@@ -96,7 +96,7 @@ int main () {
       };
 
       // register the predicate and the trigger
-      sst->predicates.insert (f, g);
+      sst->predicates->insert (f, g);
     }
 
     // allow some time for detection
