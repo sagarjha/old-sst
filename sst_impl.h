@@ -201,14 +201,22 @@ void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack>::read() {
     }
 }
 
+
 /**
  * This function is run in a detached background thread to detect predicate
  * events. It continuously evaluates predicates one by one, and runs the
- * trigger functions for each predicate that fires.
+ * trigger functions for each predicate that fires. In addition, it 
+ * continuously evaluates named functions one by one, and updates the local
+ * row's observed values of those functions.
  */
 template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack>
 void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack>::detect() {
     while (!thread_shutdown) {
+        //Evaluate named functions
+        util::for_each([&](auto named_fp, auto& value_slot){
+            value_slot = (*named_fp)(*this);
+        }, named_functions, table[get_local_index()].observed_values);
+
         // one time predicates need to be evaluated only until they become true
         auto pred_it = predicates.one_time_predicates.begin();
         while (pred_it != predicates.one_time_predicates.end()) {

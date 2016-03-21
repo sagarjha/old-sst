@@ -97,7 +97,7 @@ class SST {
                 SST_Snapshot(const unique_ptr<volatile InternalRow[]>& _table, int _num_members,
                         const typename NamedFunctionTypePack::function_types& _named_functions);
                 /** Copy constructor. */
-                SST_Snapshot(const SST_Snapshot& other);
+                SST_Snapshot(const SST_Snapshot& to_copy);
 
                 /** Accesses a row of the snapshot. */
                 const Row & get(int index) const;
@@ -123,8 +123,6 @@ class SST {
         vector<unique_ptr<resources>> res_vec;
         /** A flag to signal background threads to shut down; set to true during destructor calls. */
         bool thread_shutdown;
-
-
 
         /** Base case for the recursive constructor_helper with no template parameters. */
         template<int index>
