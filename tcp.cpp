@@ -188,32 +188,32 @@ namespace sst {
      * @param node_rank The rank of the local node, i.e. the node on which this
      * code is running.
      */
-    void establish_tcp_connections (const map <uint32_t, string> & ip_addrs, uint32_t node_rank) {
+    void establish_tcp_connections(const map<uint32_t, string> &ip_addrs,
+                                   uint32_t node_rank) {
       // set up listen on the port
-      int listenfd = tcp_listen ();
-      
-      for (auto it = ip_addrs.rbegin(); it != ip_addrs.rend() && it->first > node_rank; ++it) {
-	if (it->first > node_rank) {
-	  cout << "trying to connect to node rank " << it->first << endl;
-	  pair <int, uint32_t> p = tcp_connect(it->second.c_str(), node_rank);
-	  cout << "connected to node rank " << it->first << endl << endl;
-	  assert(p.second == it->first);
-	  // set the socket
-	  sockets[it->first] = p.first;
-	}
-	else if (it->first < node_rank) {
-	  // now accept connections
-	  // make sure that the caller is correctly identified with its id!
-	  cout << "waiting for nodes with lesser rank" << endl;
-	  pair <int, uint32_t> p = tcp_accept(listenfd, node_rank);
-	  cout << "connected to node rank " << p.second << endl << endl;
-	  assert(p.second < node_rank);
-	  // set the socket
-	  sockets[p.second] = p.first;
-	}
+      int listenfd = tcp_listen();
+
+      for (auto it = ip_addrs.rbegin(); it != ip_addrs.rend(); ++it) {
+        if (it->first > node_rank) {
+          cout << "trying to connect to node rank " << it->first << endl;
+          pair<int, uint32_t> p = tcp_connect(it->second.c_str(), node_rank);
+          cout << "connected to node rank " << it->first << endl << endl;
+          assert(p.second == it->first);
+          // set the socket
+          sockets[it->first] = p.first;
+        } else if (it->first < node_rank) {
+          // now accept connections
+          // make sure that the caller is correctly identified with its id!
+          cout << "waiting for nodes with lesser rank" << endl;
+          pair<int, uint32_t> p = tcp_accept(listenfd, node_rank);
+          cout << "connected to node rank " << p.second << endl << endl;
+          assert(p.second < node_rank);
+          // set the socket
+          sockets[p.second] = p.first;
+        }
       }
       // close the listening socket
-      close (listenfd);
+      close(listenfd);
     }
 
     /**
