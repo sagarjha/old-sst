@@ -15,6 +15,8 @@ namespace sst {
  *
  * @tparam NameEnum The enum type that will be used to name this function
  * @tparam Name The name of this function (which is an enum member)
+ * @tparam Param The type of this function's parameter, which will be passed
+ * by reference. In practice, this should be {@code const SST}
  * @tparam Ret The return type of this function, which must be POD because it
  * will be stored in an SST row.
  */

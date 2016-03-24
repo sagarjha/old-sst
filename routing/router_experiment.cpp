@@ -133,7 +133,7 @@ int main (int argc, char** argv) {
 
 
   //Predicate: If any links change that might invalidate our existing path choices
-  auto predicate = [&links_used, &linkstate_snapshot] (RoutingSST& sst) {
+  auto predicate = [&links_used, &linkstate_snapshot] (const RoutingSST& sst) {
 	  for (int source = 0; source < num_nodes; ++source) {
 		for (int target = 0; target < num_nodes; ++target) {
 			auto link = make_pair(source, target);
@@ -182,7 +182,7 @@ int main (int argc, char** argv) {
 
 	  //Predicate to detect all nodes reaching the barrier
 	  int current_barrier_value = 1;
-	  auto barrier_pred = [&current_barrier_value] (RoutingSST& sst) {
+	  auto barrier_pred = [&current_barrier_value] (const RoutingSST& sst) {
 		  for (int n = 0; n < num_nodes; ++n) {
 			  if(sst[n].barrier < current_barrier_value)
 				  return false;
@@ -195,7 +195,7 @@ int main (int argc, char** argv) {
 	  for(int rep = 0; rep < experiment_reps; ++rep) {
 
 		  //Predicate to detect the first node reaching the barrier
-		  auto first_done_pred = [&current_barrier_value](SST<LSDB_Row<RACK_SIZE>>& sst) {
+		  auto first_done_pred = [&current_barrier_value](const RoutingSST& sst) {
 			  //Don't count node 0, it will finish instantly because there's no network communication
 			  for(int n = 1; n < num_nodes; ++n) {
 				  if(sst[n].barrier == current_barrier_value) {

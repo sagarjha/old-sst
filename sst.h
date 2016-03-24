@@ -131,7 +131,7 @@ class SST {
         }
         /** Helper function for the constructor that recursively unpacks NamedFunction template parameters. */
         template<int index, NameEnum Name, typename NamedFunctionRet, typename... RestFunctions>
-        auto constructor_helper(NamedFunction<NameEnum, Name, SST, NamedFunctionRet> firstFunc, RestFunctions... rest) {
+        auto constructor_helper(NamedFunction<NameEnum, Name, const SST, NamedFunctionRet> firstFunc, RestFunctions... rest) {
             using namespace std;
             static_assert(static_cast<int>(Name) == index, "Error: non-enum name, or name used out-of-order.");
             return tuple_cat(make_tuple(firstFunc.fun), constructor_helper<index + 1>(rest...));
@@ -177,8 +177,12 @@ class SST {
         virtual ~SST();
         /** Accesses a local or remote row. */
         volatile Row & get(int index);
+        /** Read-only access to a local or remote row, for use in const contexts. */
+        const volatile Row & get(int index) const;
         /** Accesses a local or remote row using the [] operator. */
         volatile Row & operator [](int index);
+        /** Read-only [] operator for a local or remote row, for use in const contexts. */
+        const volatile Row & operator[](int index) const;
         int get_num_rows() const;
         /** Gets the index of the local row in the table. */
         int get_local_index() const;

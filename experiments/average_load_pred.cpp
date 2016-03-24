@@ -96,7 +96,7 @@ int main (int argc, char** argv) {
 	sst->sync_with_members();
 
 
-	auto detect_load = [](SST<Load_Row, Mode::Writes>& sst) {
+	auto detect_load = [](const SST<Load_Row, Mode::Writes>& sst) {
 		double sum = 0;
 		for(int n = 0; n < num_nodes; ++n) {
 			sum += sst[n].avg_response_time;
@@ -118,7 +118,7 @@ int main (int argc, char** argv) {
 
 		//Predicate to detect all nodes reaching the barrier
 		int current_barrier_value = 1;
-		auto barrier_pred = [&current_barrier_value] (SST<Load_Row, Mode::Writes>& sst) {
+		auto barrier_pred = [&current_barrier_value] (const SST<Load_Row, Mode::Writes>& sst) {
 			//Since node 0 is the master node, start checking at 1
 			for (int n = 1; n < num_nodes; ++n) {
 				if(sst[n].barrier < current_barrier_value)
