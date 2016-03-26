@@ -25,17 +25,15 @@ namespace sst {
 		//Row_Extension must remain trivially copyable.
 	};
 	
-	template<typename Row>
-	using  = ;
-								
 	template<typename Row,std::size_t>
 	struct PredicateBuilder;
-	
+
+	//this exists because template recursion depth. 
 	template<typename Row>
 	struct PredicateBuilder<Row,50>{
 		typedef std::function<void (Row_Extension<Row>&, std::function<const Row_Extension<Row>& (int)>, const int num_rows)> updater_function_t;
 		using updater_function_array_t =
-			const std::array<updater_function_t<Row>,50>;
+			const std::array<updater_function_t,50>;
 	};
 													   
 	//this is an immutable struct
@@ -43,7 +41,8 @@ namespace sst {
 	struct PredicateBuilder {
 
 		using _Row_Extension = Row_Extension<Row>;
-		using _updater_function_t = updater_function_t<Row>;
+		typedef std::function<void (Row_Extension<Row>&, std::function<const Row_Extension<Row>& (int)>, const int num_rows)>
+		_updater_function_t;
 		
 		using updater_function_array_t = _updater_function_t[num_stored_bools];
 			
