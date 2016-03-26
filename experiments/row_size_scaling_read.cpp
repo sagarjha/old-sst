@@ -92,7 +92,7 @@ int main (int argc, char** argv) {
 	if(this_node_rank == TIMING_NODE) {
 		vector<long long int> start_times(EXPERIMENT_TRIALS);
 		vector<long long int> end_times(EXPERIMENT_TRIALS);
-		auto experiment_pred = [](SST<BigRow, Mode::Reads>& sst) {
+		auto experiment_pred = [](const SST<BigRow, Mode::Reads>& sst) {
 			for(int n = 0; n < num_nodes; ++n) {
 				for(int i = 0; i < ROWSIZE; ++i) {
 					if(sst[n].data[i] == 0) {
@@ -150,7 +150,7 @@ int main (int argc, char** argv) {
 
 			if(this_node_rank == num_nodes-1) {
 				//Predicate to detect that node 0 is ready to start the experiment
-				auto start_pred = [](SST<BigRow, Mode::Reads>& sst) {
+				auto start_pred = [](const SST<BigRow, Mode::Reads>& sst) {
 					return sst[TIMING_NODE].data[0] == 1;
 				};
 

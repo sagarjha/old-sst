@@ -102,7 +102,7 @@ int main (int argc, char** argv) {
 			cout << "Starting experiment for r=" << r << endl;
 			vector<long long int> start_times(EXPERIMENT_TRIALS);
 			vector<long long int> end_times(EXPERIMENT_TRIALS);
-			auto experiment_pred = [r](SST<TestRow>& sst) {
+			auto experiment_pred = [r](const SST<TestRow>& sst) {
 				for(int n = 0; n <= r; ++n) {
 					if(sst[n].data == 0) {
 						return false;
@@ -163,7 +163,7 @@ int main (int argc, char** argv) {
 
 				if(this_node_rank == r) {
 					//Predicate to detect that node 0 is ready to start the experiment
-					auto start_pred = [](SST<TestRow>& sst) {
+					auto start_pred = [](const SST<TestRow>& sst) {
 						return sst[0].data == 1;
 					};
 

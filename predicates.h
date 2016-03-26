@@ -41,7 +41,7 @@ class SST;
 template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack>
 class SST<Row, ImplMode, NameEnum, NamedFunctionTypePack>::Predicates {
 		/** Type definition for a predicate: a boolean function that takes an SST as input. */
-        using pred = function<bool(SST&)>;
+        using pred = function<bool(const SST&)>;
 		/** Type definition for a trigger: a void function that takes an SST as input. */
         using trig = function<void(SST&)>;
         /** Type definition for a list of predicates, where each predicate is 

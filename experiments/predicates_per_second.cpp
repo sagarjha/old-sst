@@ -105,7 +105,7 @@ int main (int argc, char** argv) {
 
 
 	if(this_node_rank == TIMING_NODE) {
-		auto test_pred = [&r] (SST<TestRow>& sst) {
+		auto test_pred = [&r] (const SST<TestRow>& sst) {
 			for(int n = 0; n <= r; ++n) {
 				if(sst[n].flag != 0) {
 					return false;

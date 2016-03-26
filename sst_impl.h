@@ -107,6 +107,26 @@ volatile Row & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack>::get(int inde
 }
 
 /**
+ * Even the local row will be immutable when accessed through this method.
+ *
+ * @param index The index of the row to access.
+ * @return A reference to the row structure stored at the requested row.
+ */
+template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack>
+const volatile Row & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack>::get(int index) const {
+    assert(index >= 0 && index < num_members);
+    return table[index];
+}
+
+/**
+ * Simply calls the const get function.
+ */
+template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack>
+const volatile Row & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack>::operator [](int index) const {
+    return get(index);
+}
+
+/**
  * Simply calls the get function.
  */
 template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack>

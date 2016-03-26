@@ -63,7 +63,7 @@ int main () {
   // start the experiment
   for (int i = 0; i < num_times; ++i) {
     // the predicate. Detects if the remote entry is greater than 0
-    auto f = [r_index] (SST<SimpleRow, Mode::Writes>& sst) {return sst[r_index].a > 0;};
+    auto f = [r_index] (const SST<SimpleRow, Mode::Writes>& sst) {return sst[r_index].a > 0;};
     
     // the initiator node
     if (node_rank == 0) {

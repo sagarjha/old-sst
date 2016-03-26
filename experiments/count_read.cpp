@@ -80,7 +80,7 @@ int main () {
   struct timespec start_time;
   
   // the predicate
-  auto f = [num_nodes] (SST<TestRow, Mode::Reads>& sst) {
+  auto f = [num_nodes] (const SST<TestRow, Mode::Reads>& sst) {
     for (int i = 0; i < num_nodes; ++i) {
       if (sst[i].a < sst[LOCAL].a) {
 	return false;

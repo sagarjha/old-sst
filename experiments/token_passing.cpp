@@ -120,7 +120,7 @@ int main () {
   
   if (node_rank == 0) {
     // node 0 detects if last round of token passing is complete and if so, in the trigger passes the next token
-    auto f = [pred_rank, pred_index, node_rank] (SST<TokenRow, Mode::Writes>& sst) {
+    auto f = [pred_rank, pred_index, node_rank] (const SST<TokenRow, Mode::Writes>& sst) {
       cout << "predecessor's token value" << sst[pred_index].token_num << endl;
       // checks if the predecssor has released the token
       return sst[pred_index].token_num == sst[sst.get_local_index()].token_num;
@@ -131,7 +131,7 @@ int main () {
   }
   else {
     // the predicate, checks if it can grab the token
-    auto f = [pred_rank, pred_index, node_rank] (SST<TokenRow, Mode::Writes>& sst) {
+    auto f = [pred_rank, pred_index, node_rank] (const SST<TokenRow, Mode::Writes>& sst) {
       cout << "predecessor's token value" << sst[pred_index].token_num << endl;
       // checks if the predecssor has released the token
       return sst[pred_index].token_num > sst[sst.get_local_index()].token_num;
