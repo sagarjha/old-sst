@@ -15,6 +15,9 @@
 #include "util.h"
 #include "named_function.h"
 #include "verbs.h"
+#include "NamedRowPredicates.h"
+#include "combinators.h"
+#include "combinator_utils.h"
 
 /** The root namespace for the Shared State Table project. */
 namespace sst {
@@ -71,7 +74,7 @@ struct NamedFunctionTuples {
 template<class Row, Mode ImplMode = Mode::Writes,
 		 typename NameEnum = util::NullEnum,
 		 typename NamedFunctionTypePack = NamedFunctionTuples<void>,
-		 typename NamedRowPredicatesTypePack = NamedRowPredicates<void> >
+		 typename NamedRowPredicatesTypePack = NamedRowPredicates<> >
 class SST {
         //Row struct must be POD. In addition, it should not contain any pointer types
 	static_assert(std::is_pod<Row>::value, "Error! Row type must be POD.");
@@ -79,7 +82,7 @@ class SST {
 	
 	
     private:
-	struct InternalRow : public Row, public extend_tuple_members<typename NamedRowPredicatesTypePack::function_types> {
+	struct InternalRow : public Row, public util::extend_tuple_members<typename NamedRowPredicatesTypePack::function_types> {
 		typename NamedFunctionTypePack::return_types observed_values;
 	};
 
@@ -137,12 +140,12 @@ class SST {
 
         /** Base case for the recursive constructor_helper with no template parameters. */
         template<int index>
-        auto nf_constructor_helper() {
+        auto constructor_helper() {
             return std::tuple<>{};
         }
         /** Helper function for the constructor that recursively unpacks NamedFunction template parameters. */
         template<int index, NameEnum Name, typename NamedFunctionRet, typename... RestFunctions>
-        auto nf_constructor_helper(const NamedFunction<NameEnum, Name, const SST, NamedFunctionRet> &firstFunc, const RestFunctions&... rest) {
+        auto constructor_helper(const NamedFunction<NameEnum, Name, const SST, NamedFunctionRet> &firstFunc, const RestFunctions&... rest) {
             using namespace std;
             static_assert(static_cast<int>(Name) == index, "Error: non-enum name, or name used out-of-order.");
             return tuple_cat(make_tuple(firstFunc.fun), constructor_helper<index + 1>(rest...));
@@ -150,9 +153,10 @@ class SST {
 
 	/** Helper function for the constructor that recursively unpacks Named RowPredicate template parameters. */
 
-	template<int index, typename NameEnum, NameEnum Name, typename Row, std::size_t num_stored_bools,int uniqueness_tag>
-	auto nf_constructor_helper(const NamedRowPredicate<NameEnum,Name,Row,num_stored_bools, uniqueness_tag> &nrp, const RestFunctions&... rest){
+	template<int index, NameEnum Name, std::size_t num_stored_bools, int uniqueness_tag, typename... RestFunctions>
+	auto constructor_helper(const NamedRowPredicate<NameEnum,Name,Row,num_stored_bools, uniqueness_tag> &nrp, const RestFunctions&... rest){
 		using namespace std;
+		using Row_Extension = typename std::decay_t<decltype(nrp.pb)>::Row_Extension;
 		static_assert(static_cast<int>(Name) == index, "Error: non-enum name, or name used out-of-order.");
 		for_each([&](const auto& f){
 				row_predicate_updater_functions.push_back(heap_copy([f](SST& sst) -> void{
@@ -162,7 +166,7 @@ class SST {
 		auto curr_pred = nrp.curr_pred;
 		std::function<bool (const SST&)> getter = [curr_pred](const SST& sst){
 			auto &row = sst[sst.get_local_index()];
-			return nrp.curr_pred(row,row);};
+			return curr_pred(row,row);};
 		return tuple_cat(make_tuple(getter), constructor_helper<index + 1>(rest...));
 	}
 
@@ -191,7 +195,7 @@ class SST {
         template<typename... NamedFunctions>
         SST(const vector<int> &_members, int _node_rank, NamedFunctions... named_funs) :
             SST(_members, _node_rank) {
-            named_functions = nf_constructor_helper<0>(named_funs...);
+            named_functions = constructor_helper<0>(named_funs...);
         };
         /**
          * Delegate constructor to construct an SST instance without named

@@ -4,6 +4,7 @@
 #include <type_traits>
 #include <functional>
 #include "args-finder.hpp"
+#include "combinators.h"
 
 namespace sst {
 
@@ -62,7 +63,7 @@ auto build_named_function(Ret (*fun)(const Param&) ){
 
 	template<typename NameEnum, NameEnum Name, typename Row, std::size_t num_stored_bools,int uniqueness_tag>
 	auto build_named_function(const PredicateBuilder<Row,num_stored_bools,uniqueness_tag> pb){
-		return NamedRowPredicate<NameEnum,Name>{pb};
+		return NamedRowPredicate<NameEnum,Name, Row,num_stored_bools,uniqueness_tag>{pb};
 	}
 
 /**

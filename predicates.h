@@ -26,7 +26,7 @@ enum class PredicateType {
 };
 
 enum class Mode;
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack>
+template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
 class SST;
 
 /**
@@ -38,8 +38,8 @@ class SST;
  * @tparam Mode A {@link Mode} enum value indicating whether the SST is in
  * Reads mode or Writes mode
  */
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack>
-class SST<Row, ImplMode, NameEnum, NamedFunctionTypePack>::Predicates {
+template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
+class SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::Predicates {
 		/** Type definition for a predicate: a boolean function that takes an SST as input. */
         using pred = function<bool(const SST&)>;
 		/** Type definition for a trigger: a void function that takes an SST as input. */
@@ -74,8 +74,8 @@ class SST<Row, ImplMode, NameEnum, NamedFunctionTypePack>::Predicates {
  * @param type The type of predicate being inserted; default is 
  * PredicateType::ONE_TIME
  */
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack>
-void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack>::Predicates::insert(pred predicate, trig trigger, PredicateType type) {
+template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
+void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::Predicates::insert(pred predicate, trig trigger, PredicateType type) {
     list<trig> g_list;
     g_list.push_back(trigger);
     if (type == PredicateType::ONE_TIME) {
