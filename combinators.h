@@ -6,6 +6,7 @@
 #include <cassert>
 #include <tuple>
 #include "args-finder.hpp"
+#include "combinator_utils.h"
 
 
 namespace sst {
@@ -17,28 +18,29 @@ namespace sst {
  * disjunction, integral-type comparison, and knowledge operators.
  */
 	
-	template<typename Row,std::size_t>
+	template<typename Row,std::size_t,int uniqueness_tag>
 	struct PredicateBuilder;
 
-	template<typename Row>
-	struct PredicateBuilder<Row,0> {
-		using Row_Extension = Row;
+	template<typename Row,int uniqueness_tag>
+	struct PredicateBuilder<Row,0,uniqueness_tag> {
+		static_assert(std::is_pod<Row>::value,"Error: POD rows required!");
+		struct Row_Extension{};
 		using updater_functions_t = std::tuple<>;
-		const std::function<bool (const Row_Extension& r)> curr_pred;
+		const std::function<bool (const Row, const Row_Extension&)> curr_pred;
 		const updater_functions_t updater_functions;
 	};
 													   
 	//this is an immutable struct
-	template<typename Row, std::size_t num_stored_bools>
+	template<typename Row, std::size_t num_stored_bools,int uniqueness_tag>
 	struct PredicateBuilder {
 		
-		struct Row_Extension : public PredicateBuilder<Row,num_stored_bools - 1>::Row_Extension {
+		struct Row_Extension : public PredicateBuilder<Row,num_stored_bools - 1,uniqueness_tag>::Row_Extension {
 			bool stored;
 		};
 		
-		typedef std::function<void (Row_Extension&, std::function<const Row_Extension& (int)>, const int num_rows)> updater_function_t;
+		typedef std::function<void (Row_Extension&, std::function<util::ref_pair<Row, Row_Extension> (int)>, const int num_rows)> updater_function_t;
 
-		using old_updater_functions_t = typename PredicateBuilder<Row,num_stored_bools - 1>::updater_functions_t;
+		using old_updater_functions_t = typename PredicateBuilder<Row,num_stored_bools - 1, uniqueness_tag>::updater_functions_t;
 		using updater_functions_t =
 			std::decay_t<
 			decltype(std::tuple_cat(
@@ -47,7 +49,7 @@ namespace sst {
 			
 		const updater_functions_t updater_functions;
 		
-		const std::function<bool (const Row_Extension& r)> curr_pred;
+		const std::function<bool (const Row&, const Row_Extension&)> curr_pred;
 
 		PredicateBuilder(const old_updater_functions_t & ufa, const updater_function_t &f, const decltype(curr_pred) curr_pred):
 			updater_functions(std::tuple_cat(ufa,std::make_tuple(f))),curr_pred(curr_pred){}
@@ -55,10 +57,10 @@ namespace sst {
 
 	namespace predicate_builder {
 
-		template<typename Row, std::size_t num_stored_bools>
-		auto E(const PredicateBuilder<Row, num_stored_bools>& pb)  {
+		template<typename Row, std::size_t num_stored_bools,int uniqueness_tag>
+		auto E(const PredicateBuilder<Row, num_stored_bools, uniqueness_tag>& pb)  {
 			
-			using next_builder = PredicateBuilder<Row,num_stored_bools + 1>;
+			using next_builder = PredicateBuilder<Row,num_stored_bools + 1, uniqueness_tag>;
 			using Row_Extension = typename next_builder::Row_Extension;
 
 			auto curr_pred = pb.curr_pred;
@@ -66,27 +68,39 @@ namespace sst {
 			return next_builder{
 				pb.updater_functions,
 					[curr_pred]
-					(Row_Extension& my_row, std::function<const Row_Extension& (int)> lookup_row, const int num_rows){
+					(Row_Extension& my_row, std::function<util::ref_pair<Row,Row_Extension> (int)> lookup_row, const int num_rows){
 						bool result = true;
 						for (int i = 0; i < num_rows; ++i){
-							if (!curr_pred(lookup_row(i))) result = false;
+							auto rowpair = lookup_row(i);
+							if (!curr_pred(rowpair.l, rowpair.r)) result = false;
 						}
 						my_row.stored = result;
 					},
-						[](const Row_Extension &r){
+						[](const Row&, const Row_Extension &r){
 							return r.stored;
 						}
 						};
 			}
 		
-		template<typename F>
+		template<int uniqueness_tag, typename F>
 		auto E(F f){
 			using namespace util;
 			auto f2 = convert(f);
 			using Row = std::decay_t<typename function_traits<decltype(f2)>::template arg<0>::type>;
-			using pred_builder = PredicateBuilder<Row,0>;
-			return E(pred_builder{f,std::tuple<>{}});
+			using pred_builder = PredicateBuilder<Row,0,uniqueness_tag>;
+			using Row_Extension = typename pred_builder::Row_Extension;
+			return E(pred_builder{[f](const Row &r, const Row_Extension&){return f(r);},std::tuple<>{}});
 		}
+
+		
+		template<typename> struct extract_row_str;
+		template<typename Row, std::size_t count, int uniqueness_tag>
+			struct extract_row_str<PredicateBuilder<Row,count, uniqueness_tag> >{
+			using type = Row;
+		};
+
+		template<typename T>
+			using extract_row = typename extract_row_str<T>::type;
 	}
 }
 
