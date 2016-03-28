@@ -4,6 +4,7 @@
 #include <memory>
 #include <type_traits>
 #include <cassert>
+#include <tuple>
 #include "args-finder.hpp"
 
 
@@ -15,85 +16,75 @@ namespace sst {
  * new predicates using a simple logic language consisting of conjuction,
  * disjunction, integral-type comparison, and knowledge operators.
  */
-
-	template<typename Row>
-	struct Row_Extension : public Row{
-		//this is an array
-		bool *stored;
-		std::size_t sizeof_stored;
-		//BUYER BEWARE:  SST will need to delete the array here.
-		//Row_Extension must remain trivially copyable.
-	};
 	
 	template<typename Row,std::size_t>
 	struct PredicateBuilder;
 
-	//this exists because template recursion depth. 
 	template<typename Row>
-	struct PredicateBuilder<Row,50>{
-		typedef std::function<void (Row_Extension<Row>&, std::function<const Row_Extension<Row>& (int)>, const int num_rows)> updater_function_t;
-		using updater_function_array_t =
-			const std::array<updater_function_t,50>;
+	struct PredicateBuilder<Row,0> {
+		using Row_Extension = Row;
+		using updater_functions_t = std::tuple<>;
+		const std::function<bool (const Row_Extension& r)> curr_pred;
+		const updater_functions_t updater_functions;
 	};
 													   
 	//this is an immutable struct
 	template<typename Row, std::size_t num_stored_bools>
 	struct PredicateBuilder {
-
-		using _Row_Extension = Row_Extension<Row>;
-		typedef std::function<void (Row_Extension<Row>&, std::function<const Row_Extension<Row>& (int)>, const int num_rows)>
-		_updater_function_t;
 		
-		using updater_function_array_t = _updater_function_t[num_stored_bools];
+		struct Row_Extension : public PredicateBuilder<Row,num_stored_bools - 1>::Row_Extension {
+			bool stored;
+		};
+		
+		typedef std::function<void (Row_Extension&, std::function<const Row_Extension& (int)>, const int num_rows)> updater_function_t;
+
+		using old_updater_functions_t = typename PredicateBuilder<Row,num_stored_bools - 1>::updater_functions_t;
+		using updater_functions_t =
+			std::decay_t<
+			decltype(std::tuple_cat(
+						 std::declval<old_updater_functions_t>(),
+						 std::declval<std::tuple<updater_function_t> >()))>;
 			
-		const updater_function_array_t updater_functions;
+		const updater_functions_t updater_functions;
 		
-		const std::function<bool (const _Row_Extension& r)> curr_pred;
+		const std::function<bool (const Row_Extension& r)> curr_pred;
 
-		PredicateBuilder(const updater_function_array_t & ufa, const decltype(curr_pred) curr_pred):
-			curr_pred(curr_pred){
-			auto uf_hndle = const_cast<_updater_function_t*>(updater_functions);
-			for (int i = 0; i < num_stored_bools; ++i){
-				uf_hndle[i] = ufa[i];
-			}
-		}
-		
-		auto E() const {
+		PredicateBuilder(const old_updater_functions_t & ufa, const updater_function_t &f, const decltype(curr_pred) curr_pred):
+			updater_functions(std::tuple_cat(ufa,std::make_tuple(f))),curr_pred(curr_pred){}
+	};
+
+	namespace predicate_builder {
+
+		template<typename Row, std::size_t num_stored_bools>
+		auto E(const PredicateBuilder<Row, num_stored_bools>& pb)  {
 			
 			using next_builder = PredicateBuilder<Row,num_stored_bools + 1>;
-			using next_function_array_t = typename next_builder::updater_function_array_t;
-			next_function_array_t next_funs;
-			
-			for (int i = 0; i < num_stored_bools; ++i){
-				next_funs[i] = updater_functions[i];
-			}
-			
-			next_funs[num_stored_bools] = [curr_pred = this->curr_pred]
-				(_Row_Extension& my_row, std::function<const _Row_Extension& (int)> lookup_row, const int num_rows){
-				bool result = true;
-				for (int i = 0; i < num_rows; ++i){
-					if (!curr_pred(lookup_row(i))) result = false;
-				}
-				assert(my_row.sizeof_stored == num_stored_bools + 1);
-				my_row.stored[num_stored_bools] = result;
-			};
+			using Row_Extension = typename next_builder::Row_Extension;
+
+			auto curr_pred = pb.curr_pred;
 			
 			return next_builder{
-				next_funs,
-					[](const _Row_Extension &r){
-					return r.stored[num_stored_bools];
-				}
-			};}
-	};
-						  
-	namespace predicate_builder {
+				pb.updater_functions,
+					[curr_pred]
+					(Row_Extension& my_row, std::function<const Row_Extension& (int)> lookup_row, const int num_rows){
+						bool result = true;
+						for (int i = 0; i < num_rows; ++i){
+							if (!curr_pred(lookup_row(i))) result = false;
+						}
+						my_row.stored = result;
+					},
+						[](const Row_Extension &r){
+							return r.stored;
+						}
+						};
+			}
+		
 		template<typename F>
 		auto E(F f){
 			using namespace util;
 			using Row = std::decay_t<typename function_traits<F>::template arg<0>::type>;
-			using pred_builder = PredicateBuilder<Row,1>;
-			using Row_Extension = Row_Extension<Row>;
-			return pred_builder{{{}},[f](const Row_Extension &r){return f(r);}}.E();
+			using pred_builder = PredicateBuilder<Row,0>;
+			return E(pred_builder{f,std::tuple<>{}});
 		}
 	}
 }
