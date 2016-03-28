@@ -62,6 +62,27 @@ void for_each_hlpr(const F &f, const Tuple1 &t1, Tuple2 &t2){
     for_each_hlpr<index+1>(f,t1,t2);
 }
 
+
+/**
+ * Base case for for_each_hlpr
+ */
+template<int index, typename F, typename Tuple1>
+	std::enable_if_t<index == std::tuple_size<Tuple1>::value>
+	for_each_hlpr(const F &f, const Tuple1 &t1){
+}
+
+/**
+ * Helper function that recursively applies a function to the tuple given to 
+ * for_each(const F,const Tuple1&). This function should not be called 
+ * directly by clients; it's only visible in the header because templates must
+ * be fully implemented in headers.
+ */
+template<int index, typename F, typename Tuple1, restrict(index < std::tuple_size<Tuple1>::value)>
+void for_each_hlpr(const F &f, const Tuple1 &t1){
+    f(std::get<index>(t1));
+    for_each_hlpr<index+1>(f,t1);
+}
+
 /**
  * For-each lambda construct that can iterate over two tuples in parallel, 
  * applying a two-argument function to each pair of elements.
@@ -82,6 +103,27 @@ void for_each(const F &f, Tuple1 &t1, const Tuple2 &t2){
     static_assert(std::tuple_size<Tuple1>::value == std::tuple_size<Tuple2>::value,"Error, dual-foreach needs same size!");
     for_each_hlpr<0>(f,t1,t2);
 }
+
+
+/**
+ * For-each lambda construct that can iterate over one tuple,
+ * applying a one-argument function to each element.
+ *
+ * @param f The function to apply
+ * @param t1 The first tuple, whose elements will be supplied to the first 
+ * argument of the function.
+ * @tparam F The type of the function
+ * @tparam TupleMembers The types inside the tuple
+ */
+template<typename F, typename... TupleMembers>
+	void for_each(const F &f, const std::tuple<TupleMembers...> &t1){
+    for_each_hlpr<0>(f,t1);
+}
+
+	template<typename T>
+	std::unique_ptr<T> heap_copy(const T& t){
+		return std::make_unique<T>(t);
+	}
 
 }
 }

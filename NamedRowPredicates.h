@@ -30,5 +30,11 @@ namespace sst{
 		using function_types = std::tuple<PB, PredBuilders ...>;
 		using hd = PB;
 		using rst = NamedRowPredicates<PredBuilders...>;
+		using size = typename std::integral_constant<std::size_t, sizeof...(PredBuilders) + 1>::type;
+		using num_updater_functions =
+			typename std::integral_constant<
+			std::size_t,
+			 PB::num_updater_functions::value +
+			 util::sum(PredBuilders::num_updater_functions::value...)>::type;
 	};
 }

@@ -23,10 +23,27 @@ namespace sst {
 template<typename NameEnum, NameEnum Name, typename Param, typename Ret>
 struct NamedFunction {
     static_assert(std::is_pod<Ret>::value, "Error: only POD return types");
-    Ret (*fun) (Param&);
+    Ret (*fun) (const Param&);
     using ret_t = Ret;
     static constexpr NameEnum name = Name;
 };
+
+/**
+ * Represents a named row predicate over an SST; the row predicate should be
+ * constructed via methods made available through combinators.h
+ *
+ * @tparam NameEnum The enum type that will be used to name this function
+ * @tparam Name The name of this function (which is an enum member)
+ * @tparam Row the Row over which the SST will be built.
+ * @tparam num_stored the number of additional row bytes required to support this predicate (automatic)
+ * @tparam uniqueness_tag A type disambiguator used internally (automatic)
+ */
+	template<typename NameEnum, NameEnum Name, typename Row, std::size_t num_stored, int uniqueness_tag>
+struct NamedRowPredicate {
+		PredicateBuilder<Row,num_stored,uniqueness_tag> pb;
+		static constexpr NameEnum name = Name;
+};
+	
 
 /**
  * Helper for the "make_named_function" macro, which constructs a named function.
@@ -34,11 +51,19 @@ struct NamedFunction {
  * @param fun A pointer to the function to name.
  * @return A NamedFunction wrapping the given function.
  */
-template<typename NameEnum, NameEnum Name, typename Param, typename F>
-auto build_named_function(F fun){
-    using R = std::result_of_t<F(Param&)>;
-    return NamedFunction<NameEnum,Name,Param,R>{fun};
+template<typename NameEnum, NameEnum Name, typename Param, typename Ret>
+auto build_named_function(Ret (*fun)(const Param&) ){
+    return NamedFunction<NameEnum,Name,Param,Ret>{fun};
 }
+	template<typename NameEnum, NameEnum Name, typename F>
+	auto buid_named_function(F f){
+		return build_named_function(util::convert_fp(f));
+	}
+
+	template<typename NameEnum, NameEnum Name, typename Row, std::size_t num_stored_bools,int uniqueness_tag>
+	auto build_named_function(const PredicateBuilder<Row,num_stored_bools,uniqueness_tag> pb){
+		return NamedRowPredicate<NameEnum,Name>{pb};
+	}
 
 /**
  * Constructs a NamedFunction, using the first argument as the name and the
@@ -49,7 +74,7 @@ auto build_named_function(F fun){
  * @return A NamedFunction wrapping the given function and associating it with
  * the given name
  */
-#define make_named_function(name,fun...) build_named_function<decltype(name),name>(util::convert_fp(fun))
+#define make_named_function(name,fun...) build_named_function<decltype(name),name>(fun)
 
 }
 

@@ -46,6 +46,8 @@ namespace sst {
 			decltype(std::tuple_cat(
 						 std::declval<old_updater_functions_t>(),
 						 std::declval<std::tuple<updater_function_t> >()))>;
+
+		using num_updater_functions = typename std::integral_constant<std::size_t, num_stored_bools>::type;
 			
 		const updater_functions_t updater_functions;
 		
@@ -81,7 +83,8 @@ namespace sst {
 						}
 						};
 			}
-		
+
+			//F is a function of Row -> bool.  This will deduce that.
 		template<int uniqueness_tag, typename F>
 		auto E(F f){
 			using namespace util;

@@ -74,14 +74,14 @@ template<class Row, Mode ImplMode = Mode::Writes,
 		 typename NamedRowPredicatesTypePack = NamedRowPredicates<void> >
 class SST {
         //Row struct must be POD. In addition, it should not contain any pointer types
-        static_assert(std::is_pod<Row>::value, "Error! Row type must be POD.");
-	static_assert(forall_type_list<std::is_pod, NamedRowPredicatesTypePack>(),"Error: RowPredicates built on wrong row!");
+	static_assert(std::is_pod<Row>::value, "Error! Row type must be POD.");
+	//static_assert(forall_type_list<this should be is_base with the Row!, NamedRowPredicatesTypePack>(),"Error: RowPredicates built on wrong row!");
 	
 	
     private:
-        struct InternalRow : Row {
-            typename NamedFunctionTypePack::return_types observed_values;
-        };
+	struct InternalRow : public Row, public extend_tuple_members<typename NamedRowPredicatesTypePack::function_types> {
+		typename NamedFunctionTypePack::return_types observed_values;
+	};
 
     public:
         /**
@@ -97,6 +97,8 @@ class SST {
                 unique_ptr<const InternalRow[]> table;
                 /** List of functions we have registered to use knowledge operators on */
                 typename NamedFunctionTypePack::function_types named_functions;
+
+			//Note to self: there is no requirement to include row function mechanisms here.
 
             public:
                 /** Creates an SST snapshot given the current state internals of the SST. */
@@ -124,7 +126,10 @@ class SST {
         unique_ptr<volatile InternalRow[]> table;
         /** List of functions we have registered to use knowledge operators on */
         typename NamedFunctionTypePack::function_types named_functions;
-
+	/** List of functions needed to update row predicates */
+	using row_predicate_updater_p = std::unique_ptr<std::function<void (SST&)> >;
+	std::vector<row_predicate_updater_p> row_predicate_updater_functions; //should be of size NamedPredicatesTypePack::num_updater_functions:::value
+	
         /** RDMA resources vector, one for each member. */
         vector<unique_ptr<resources>> res_vec;
         /** A flag to signal background threads to shut down; set to true during destructor calls. */
@@ -132,16 +137,34 @@ class SST {
 
         /** Base case for the recursive constructor_helper with no template parameters. */
         template<int index>
-        auto constructor_helper() {
+        auto nf_constructor_helper() {
             return std::tuple<>{};
         }
         /** Helper function for the constructor that recursively unpacks NamedFunction template parameters. */
         template<int index, NameEnum Name, typename NamedFunctionRet, typename... RestFunctions>
-        auto constructor_helper(NamedFunction<NameEnum, Name, const SST, NamedFunctionRet> firstFunc, RestFunctions... rest) {
+        auto nf_constructor_helper(const NamedFunction<NameEnum, Name, const SST, NamedFunctionRet> &firstFunc, const RestFunctions&... rest) {
             using namespace std;
             static_assert(static_cast<int>(Name) == index, "Error: non-enum name, or name used out-of-order.");
             return tuple_cat(make_tuple(firstFunc.fun), constructor_helper<index + 1>(rest...));
         }
+
+	/** Helper function for the constructor that recursively unpacks Named RowPredicate template parameters. */
+
+	template<int index, typename NameEnum, NameEnum Name, typename Row, std::size_t num_stored_bools,int uniqueness_tag>
+	auto nf_constructor_helper(const NamedRowPredicate<NameEnum,Name,Row,num_stored_bools, uniqueness_tag> &nrp, const RestFunctions&... rest){
+		using namespace std;
+		static_assert(static_cast<int>(Name) == index, "Error: non-enum name, or name used out-of-order.");
+		for_each([&](const auto& f){
+				row_predicate_updater_functions.push_back(heap_copy([f](SST& sst) -> void{
+							f(sst[sst.get_local_index()],[&](int row){return util::ref_pair<Row,Row_Extension>{sst[row],sst[row]}; }, sst.get_num_rows());
+						}));
+			}, nrp.updater_functions);
+		auto curr_pred = nrp.curr_pred;
+		std::function<bool (const SST&)> getter = [curr_pred](const SST& sst){
+			auto &row = sst[sst.get_local_index()];
+			return nrp.curr_pred(row,row);};
+		return tuple_cat(make_tuple(getter), constructor_helper<index + 1>(rest...));
+	}
 
         //Functions for background threads to run
         /** Reads all the remote rows once by RDMA, if this SST is in Reads mode. */
@@ -168,7 +191,7 @@ class SST {
         template<typename... NamedFunctions>
         SST(const vector<int> &_members, int _node_rank, NamedFunctions... named_funs) :
             SST(_members, _node_rank) {
-            named_functions = constructor_helper<0>(named_funs...);
+            named_functions = nf_constructor_helper<0>(named_funs...);
         };
         /**
          * Delegate constructor to construct an SST instance without named

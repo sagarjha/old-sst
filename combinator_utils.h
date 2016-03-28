@@ -59,5 +59,22 @@ namespace sst {
 		template<typename... T>
 		using extend_all = extend_tuple_members<dedup_params<T...> >;
 
+		template<template <typename> class Pred, typename typelist>
+		constexpr std::enable_if_t<!typelist::is_tail::value,bool> forall_type_list(){
+			using hd = typename typelist::hd;
+			using rst = typename typelist::rst;
+			return Pred<hd>::value && forall_type_list<>();
+		}
+
+		template<typename T1>
+		auto sum(const T1 &t1){
+			return t1;
+		}
+		
+		template<typename T1, const T2, typename... T>
+		auto sum(const T1 &t1, const T2 &t2, const T& ... t){
+			return t1 + sum(t2,t...);
+		}
+
 	}
 }
