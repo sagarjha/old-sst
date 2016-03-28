@@ -47,5 +47,17 @@ namespace sst {
 		template<typename... T>
 		using dedup_params = typename dedup_params_str<T...>::types;
 
+		template<typename... tuple_contents >
+		auto extend_tuple_members_f (const std::tuple<tuple_contents...>&){
+			struct extend_this : public tuple_contents... {};
+			return extend_this{};
+		}
+		
+		template<typename tpl>
+		using extend_tuple_members = std::decay_t<decltype(extend_tuple_members_f(std::declval<tpl>()))>;
+
+		template<typename... T>
+		using extend_all = extend_tuple_members<dedup_params<T...> >;
+
 	}
 }

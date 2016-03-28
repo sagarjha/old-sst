@@ -54,6 +54,7 @@ struct NamedFunctionTuples {
         using function_types = std::tuple<NamedFunctionRets (*) (NamedFunctionParam&) ...>;
 };
 
+	
 /**
  * The SST object, representing a single shared state table.
  *
@@ -67,11 +68,16 @@ struct NamedFunctionTuples {
  * return types of all the named functions that will be registered with this
  * SST; defaults to an empty struct if no named functions are used.
  */
-template<class Row, Mode ImplMode = Mode::Writes, typename NameEnum = util::NullEnum, typename NamedFunctionTypePack = NamedFunctionTuples<void>>
+template<class Row, Mode ImplMode = Mode::Writes,
+		 typename NameEnum = util::NullEnum,
+		 typename NamedFunctionTypePack = NamedFunctionTuples<void>,
+		 typename NamedRowPredicatesTypePack = NamedRowPredicates<void> >
 class SST {
         //Row struct must be POD. In addition, it should not contain any pointer types
         static_assert(std::is_pod<Row>::value, "Error! Row type must be POD.");
-
+	static_assert(forall_type_list<std::is_pod, NamedRowPredicatesTypePack>(),"Error: RowPredicates built on wrong row!");
+	
+	
     private:
         struct InternalRow : Row {
             typename NamedFunctionTypePack::return_types observed_values;
