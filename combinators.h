@@ -82,7 +82,8 @@ namespace sst {
 		template<typename F>
 		auto E(F f){
 			using namespace util;
-			using Row = std::decay_t<typename function_traits<F>::template arg<0>::type>;
+			auto f2 = convert(f);
+			using Row = std::decay_t<typename function_traits<decltype(f2)>::template arg<0>::type>;
 			using pred_builder = PredicateBuilder<Row,0>;
 			return E(pred_builder{f,std::tuple<>{}});
 		}
