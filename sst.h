@@ -106,15 +106,10 @@ class SST {
                 int num_members;
                 /** The structure containing shared state data. */
                 unique_ptr<const InternalRow[]> table;
-                /** List of functions we have registered to use knowledge operators on */
-                typename NamedFunctionTypePack::function_types named_functions;
-
-			//Note to self: there is no requirement to include row function mechanisms here.
 
             public:
                 /** Creates an SST snapshot given the current state internals of the SST. */
-                SST_Snapshot(const unique_ptr<volatile InternalRow[]>& _table, int _num_members,
-							 const decltype(named_functions)& _named_functions);
+                SST_Snapshot(const unique_ptr<volatile InternalRow[]>& _table, int _num_members);
                 /** Copy constructor. */
                 SST_Snapshot(const SST_Snapshot& to_copy);
 
@@ -136,8 +131,8 @@ class SST {
         /** The actual structure containing shared state data. */
         unique_ptr<volatile InternalRow[]> table;
 	/** List of functions needed to update row predicates */
-	using row_predicate_updater_p = std::unique_ptr<std::function<void (SST&)> >;
-	std::vector<row_predicate_updater_p> row_predicate_updater_functions; //should be of size NamedPredicatesTypePack::num_updater_functions:::value
+	using row_predicate_updater_t = std::function<void (SST&)>;
+	std::vector<row_predicate_updater_t> row_predicate_updater_functions; //should be of size NamedPredicatesTypePack::num_updater_functions:::value
 	
         /** RDMA resources vector, one for each member. */
         vector<unique_ptr<resources>> res_vec;
@@ -165,11 +160,11 @@ class SST {
 		using Row_Extension = typename std::decay_t<decltype(pb)>::Row_Extension;
 		static_assert(static_cast<int>(Name) == index, "Error: non-enum name, or name used out-of-order.");
 		for_each([&](const auto& f){
-				row_predicate_updater_functions.push_back(make_unique<std::function<void (SST&)> >([f](SST& sst) -> void{
+				row_predicate_updater_functions.push_back([f](SST& sst) -> void{
 							f(sst.table[sst.get_local_index()],
 							  [&](int row){return util::ref_pair<volatile Row,volatile Row_Extension>{sst.table[row],sst.table[row]}; },
 							  sst.get_num_rows());
-						}));
+						});
 			}, pb.updater_functions);
 		auto curr_pred = pb.curr_pred;
 		std::function<bool (const SST&)> getter = [curr_pred](const SST& sst){

@@ -237,6 +237,11 @@ void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>:
             value_slot = (*named_fp)(*this);
         }, named_functions, table[get_local_index()].observed_values);
 
+		//update intermediate results for Row Predicates
+		for (auto &f : row_predicate_updater_functions){
+			f(*this);
+		}
+
         // one time predicates need to be evaluated only until they become true
         auto pred_it = predicates.one_time_predicates.begin();
         while (pred_it != predicates.one_time_predicates.end()) {
@@ -348,9 +353,8 @@ void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>:
  */
 template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
 SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST_Snapshot::SST_Snapshot(
-        const unique_ptr<volatile InternalRow[]>& _table, int _num_members,
-        const decltype(named_functions)& _named_functions) :
-        num_members(_num_members), table(new InternalRow[num_members]), named_functions(_named_functions) {
+        const unique_ptr<volatile InternalRow[]>& _table, int _num_members) :
+        num_members(_num_members), table(new InternalRow[num_members]) {
 
     std::memcpy(const_cast<InternalRow*>(table.get()),
             const_cast<const InternalRow*>(_table.get()),
@@ -360,8 +364,7 @@ SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST_
 template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
 SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST_Snapshot::SST_Snapshot(
         const SST_Snapshot& to_copy) :
-        num_members(to_copy.num_members), table(new InternalRow[num_members]), named_functions(
-                to_copy.named_functions) {
+        num_members(to_copy.num_members), table(new InternalRow[num_members]) {
 
     std::memcpy(table.get(), to_copy.table.get(),
             num_members * sizeof(InternalRow));
