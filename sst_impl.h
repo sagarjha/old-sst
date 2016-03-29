@@ -16,8 +16,8 @@ namespace sst {
 
 
 template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST(const vector<int> &_members, int _node_rank) :
-                members(_members.size()), num_members(_members.size()),
+SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST(const vector<int> &_members, int _node_rank, decltype(named_functions) named_functions) :
+	named_functions(named_functions), members(_members.size()), num_members(_members.size()),
                 table(new InternalRow[_members.size()]), res_vec(num_members),
                 thread_shutdown(false),
 					predicates(*(new Predicates())){
@@ -349,7 +349,7 @@ void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>:
 template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
 SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST_Snapshot::SST_Snapshot(
         const unique_ptr<volatile InternalRow[]>& _table, int _num_members,
-        const typename NamedFunctionTypePack::function_types& _named_functions) :
+        const decltype(named_functions)& _named_functions) :
         num_members(_num_members), table(new InternalRow[num_members]), named_functions(_named_functions) {
 
     std::memcpy(const_cast<InternalRow*>(table.get()),

@@ -47,7 +47,7 @@ enum class NullEnum {};
  * Base case for for_each_hlpr
  */
 template<int index, typename F, typename Tuple1, typename Tuple2>
-std::enable_if_t<index == std::tuple_size<Tuple1>::value> for_each_hlpr(const F &f, const Tuple1 &t1, Tuple2 &t2){
+std::enable_if_t<index == std::tuple_size<Tuple2>::value> for_each_hlpr(const F &f, const Tuple1 &t1, Tuple2 &t2){
 }
 
 /**
@@ -56,7 +56,7 @@ std::enable_if_t<index == std::tuple_size<Tuple1>::value> for_each_hlpr(const F 
  * directly by clients; it's only visible in the header because templates must
  * be fully implemented in headers.
  */
-template<int index, typename F, typename Tuple1, typename Tuple2, restrict(index < std::tuple_size<Tuple1>::value)>
+template<int index, typename F, typename Tuple1, typename Tuple2, restrict(index < std::tuple_size<Tuple2>::value)>
 void for_each_hlpr(const F &f, const Tuple1 &t1, Tuple2 &t2){
     f(std::get<index>(t1),std::get<index>(t2));
     for_each_hlpr<index+1>(f,t1,t2);
@@ -100,7 +100,7 @@ void for_each_hlpr(const F &f, const Tuple1 &t1){
  */
 template<typename F, typename Tuple1, typename Tuple2>
 void for_each(const F &f, Tuple1 &t1, const Tuple2 &t2){
-    static_assert(std::tuple_size<Tuple1>::value == std::tuple_size<Tuple2>::value,"Error, dual-foreach needs same size!");
+    static_assert(std::tuple_size<Tuple1>::value >= std::tuple_size<Tuple2>::value,"Error, dual-foreach needs smaller one second!");
     for_each_hlpr<0>(f,t1,t2);
 }
 

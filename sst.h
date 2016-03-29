@@ -82,9 +82,17 @@ class SST {
 	
 	
     private:
-	struct InternalRow : public Row, public util::extend_tuple_members<typename NamedRowPredicatesTypePack::function_types> {
+	struct InternalRow : public Row, public util::extend_tuple_members<typename NamedRowPredicatesTypePack::row_types> {
 		typename NamedFunctionTypePack::return_types observed_values;
 	};
+
+	using named_functions_t =
+		std::decay_t<decltype(
+		std::tuple_cat(std::declval<typename NamedFunctionTypePack::function_types>(),
+					   std::declval<util::n_copies<NamedRowPredicatesTypePack::size::value,
+					                               std::function<bool (const SST&)> > >()))>;
+	/** List of functions we have registered to use knowledge operators on */
+	named_functions_t named_functions;
 
     public:
         /**
@@ -106,7 +114,7 @@ class SST {
             public:
                 /** Creates an SST snapshot given the current state internals of the SST. */
                 SST_Snapshot(const unique_ptr<volatile InternalRow[]>& _table, int _num_members,
-                        const typename NamedFunctionTypePack::function_types& _named_functions);
+							 const decltype(named_functions)& _named_functions);
                 /** Copy constructor. */
                 SST_Snapshot(const SST_Snapshot& to_copy);
 
@@ -127,8 +135,6 @@ class SST {
         int member_index;
         /** The actual structure containing shared state data. */
         unique_ptr<volatile InternalRow[]> table;
-        /** List of functions we have registered to use knowledge operators on */
-        typename NamedFunctionTypePack::function_types named_functions;
 	/** List of functions needed to update row predicates */
 	using row_predicate_updater_p = std::unique_ptr<std::function<void (SST&)> >;
 	std::vector<row_predicate_updater_p> row_predicate_updater_functions; //should be of size NamedPredicatesTypePack::num_updater_functions:::value
@@ -153,19 +159,21 @@ class SST {
 
 	/** Helper function for the constructor that recursively unpacks Named RowPredicate template parameters. */
 
-	template<int index, NameEnum Name, std::size_t num_stored_bools, int uniqueness_tag, typename... RestFunctions>
-	auto constructor_helper(const NamedRowPredicate<NameEnum,Name,Row,num_stored_bools, uniqueness_tag> &nrp, const RestFunctions&... rest){
+	template<int index, NameEnum Name, std::size_t num_stored_bools, typename... RestFunctions>
+	auto constructor_helper(const PredicateBuilder<Row,num_stored_bools,NameEnum,Name> &pb, const RestFunctions&... rest){
 		using namespace std;
-		using Row_Extension = typename std::decay_t<decltype(nrp.pb)>::Row_Extension;
+		using Row_Extension = typename std::decay_t<decltype(pb)>::Row_Extension;
 		static_assert(static_cast<int>(Name) == index, "Error: non-enum name, or name used out-of-order.");
 		for_each([&](const auto& f){
-				row_predicate_updater_functions.push_back(heap_copy([f](SST& sst) -> void{
-							f(sst[sst.get_local_index()],[&](int row){return util::ref_pair<Row,Row_Extension>{sst[row],sst[row]}; }, sst.get_num_rows());
+				row_predicate_updater_functions.push_back(make_unique<std::function<void (SST&)> >([f](SST& sst) -> void{
+							f(sst.table[sst.get_local_index()],
+							  [&](int row){return util::ref_pair<volatile Row,volatile Row_Extension>{sst.table[row],sst.table[row]}; },
+							  sst.get_num_rows());
 						}));
-			}, nrp.updater_functions);
-		auto curr_pred = nrp.curr_pred;
+			}, pb.updater_functions);
+		auto curr_pred = pb.curr_pred;
 		std::function<bool (const SST&)> getter = [curr_pred](const SST& sst){
-			auto &row = sst[sst.get_local_index()];
+			const auto &row = sst.table[sst.get_local_index()];
 			return curr_pred(row,row);};
 		return tuple_cat(make_tuple(getter), constructor_helper<index + 1>(rest...));
 	}
@@ -192,11 +200,17 @@ class SST {
          * @param named_funs Zero or more NamedFunction structs representing named
          * functions whose values the SST should track
          */
-        template<typename... NamedFunctions>
-        SST(const vector<int> &_members, int _node_rank, NamedFunctions... named_funs) :
-            SST(_members, _node_rank) {
-            named_functions = constructor_helper<0>(named_funs...);
-        };
+	template<typename... NamedFunctions>
+	SST(const vector<int> &_members, int _node_rank) :
+		SST(_members, _node_rank,std::tuple<>{}) {}
+
+	template<NameEnum Name, std::size_t num_stored_bools, typename... RestFunctions>
+	SST(const vector<int> &_members, int _node_rank, const PredicateBuilder<Row,num_stored_bools,NameEnum,Name> &pb, RestFunctions... named_funs) :
+		SST(_members, _node_rank,constructor_helper<0>(pb,named_funs...)) {}
+	
+	template<NameEnum Name, typename NamedFunctionRet, typename... RestFunctions>
+	SST(const vector<int> &_members, int _node_rank, const NamedFunction<NameEnum, Name, const SST, NamedFunctionRet> &firstFunc, RestFunctions... named_funs) :
+		SST(_members, _node_rank,constructor_helper<0>(firstFunc,named_funs...)) {}
         /**
          * Delegate constructor to construct an SST instance without named
          * functions.
@@ -206,7 +220,7 @@ class SST {
          * @param _node_rank The node rank of the local node, i.e. the one on which
          * this code is running.
          */
-        SST(const vector<int> &_members, int _node_rank);
+	SST(const vector<int> &_members, int _node_rank, decltype(named_functions));
         virtual ~SST();
         /** Accesses a local or remote row. */
         volatile Row & get(int index);

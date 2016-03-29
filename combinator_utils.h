@@ -48,13 +48,13 @@ namespace sst {
 		using dedup_params = typename dedup_params_str<T...>::types;
 
 		template<typename... tuple_contents >
-		auto extend_tuple_members_f (const std::tuple<tuple_contents...>&){
+		auto* extend_tuple_members_f (const std::tuple<tuple_contents...>&){
 			struct extend_this : public tuple_contents... {};
-			return extend_this{};
+			return util::mke_p<extend_this>();
 		}
 		
 		template<typename tpl>
-		using extend_tuple_members = std::decay_t<decltype(extend_tuple_members_f(std::declval<tpl>()))>;
+		using extend_tuple_members = std::decay_t<decltype(*extend_tuple_members_f(std::declval<tpl>()))>;
 
 		template<typename... T>
 		using extend_all = extend_tuple_members<dedup_params<T...> >;
@@ -73,14 +73,31 @@ namespace sst {
 		}
 
 		template<typename T1>
-		auto sum(const T1 &t1){
+		constexpr auto sum(const T1 &t1){
 			return t1;
 		}
 		
 		template<typename T1, typename T2, typename... T>
-		auto sum(const T1 &t1, const T2 &t2, const T& ... t){
+		constexpr auto sum(const T1 &t1, const T2 &t2, const T& ... t){
 			return t1 + sum(t2,t...);
 		}
 
+		template<std::size_t n, typename T>
+		struct n_copies_str;
+		
+		template<typename T>
+		struct n_copies_str<0,T> {
+			using type = std::tuple<>;
+		};
+
+		template<std::size_t n, typename T>
+		struct n_copies_str{
+			using type = std::decay_t<decltype(
+				std::tuple_cat(std::make_tuple(std::declval<T>()),
+							   std::declval<typename n_copies_str<n-1,T>::type>() ))>;
+		};
+
+		template<std::size_t n, typename T>
+		using n_copies = typename n_copies_str<n,T>::type;
 	}
 }

@@ -28,22 +28,6 @@ struct NamedFunction {
     using ret_t = Ret;
     static constexpr NameEnum name = Name;
 };
-
-/**
- * Represents a named row predicate over an SST; the row predicate should be
- * constructed via methods made available through combinators.h
- *
- * @tparam NameEnum The enum type that will be used to name this function
- * @tparam Name The name of this function (which is an enum member)
- * @tparam Row the Row over which the SST will be built.
- * @tparam num_stored the number of additional row bytes required to support this predicate (automatic)
- * @tparam uniqueness_tag A type disambiguator used internally (automatic)
- */
-	template<typename NameEnum, NameEnum Name, typename Row, std::size_t num_stored, int uniqueness_tag>
-struct NamedRowPredicate {
-		PredicateBuilder<Row,num_stored,uniqueness_tag> pb;
-		static constexpr NameEnum name = Name;
-};
 	
 
 /**
@@ -61,10 +45,6 @@ auto build_named_function(Ret (*fun)(const Param&) ){
 		return build_named_function(util::convert_fp(f));
 	}
 
-	template<typename NameEnum, NameEnum Name, typename Row, std::size_t num_stored_bools,int uniqueness_tag>
-	auto build_named_function(const PredicateBuilder<Row,num_stored_bools,uniqueness_tag> pb){
-		return NamedRowPredicate<NameEnum,Name, Row,num_stored_bools,uniqueness_tag>{pb};
-	}
 
 /**
  * Constructs a NamedFunction, using the first argument as the name and the
