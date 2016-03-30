@@ -55,6 +55,7 @@ struct NamedFunctionTuples {
         static_assert(template_and(std::is_pod<NamedFunctionRets>::value...), "Error! Named functions must return POD.");
         using return_types = std::tuple<NamedFunctionRets...>;
         using function_types = std::tuple<NamedFunctionRets (*) (NamedFunctionParam&) ...>;
+        using size = std::integral_constant<int, sizeof...(NamedFunctionRets)>;
 };
 
 	
@@ -90,7 +91,7 @@ class SST {
 		std::decay_t<decltype(
 		std::tuple_cat(std::declval<typename NamedFunctionTypePack::function_types>(),
 					   std::declval<util::n_copies<NamedRowPredicatesTypePack::size::value,
-					                               std::function<bool (const SST&)> > >()))>;
+					   std::function<bool (volatile const InternalRow&, int)> > >()))>;
 	/** List of functions we have registered to use knowledge operators on */
 	named_functions_t named_functions;
 
@@ -114,9 +115,9 @@ class SST {
                 SST_Snapshot(const SST_Snapshot& to_copy);
 
                 /** Accesses a row of the snapshot. */
-                const Row & get(int index) const;
+                const InternalRow & get(int index) const;
                 /** Accesses a row of the snapshot using the [] operator. */
-                const Row & operator[](int index) const;
+                const InternalRow & operator[](int index) const;
         };
 
     private:
@@ -157,19 +158,21 @@ class SST {
 	template<int index, NameEnum Name, std::size_t num_stored_bools, typename... RestFunctions>
 	auto constructor_helper(const PredicateBuilder<Row,num_stored_bools,NameEnum,Name> &pb, const RestFunctions&... rest){
 		using namespace std;
-		using Row_Extension = typename std::decay_t<decltype(pb)>::Row_Extension;
+		using namespace util;
 		static_assert(static_cast<int>(Name) == index, "Error: non-enum name, or name used out-of-order.");
-		for_each([&](const auto& f){
+		typename std::decay_t<decltype(pb)>::row_extension_ptrs_t Row_Extension_types;
+		for_each([&](const auto& f, auto const * const RE_type){
 				row_predicate_updater_functions.push_back([f](SST& sst) -> void{
-							f(sst.table[sst.get_local_index()],
-							  [&](int row){return util::ref_pair<volatile Row,volatile Row_Extension>{sst.table[row],sst.table[row]}; },
-							  sst.get_num_rows());
+						using Row_Extension = decay_t<decltype(*RE_type)>;
+						f(sst.table[sst.get_local_index()],
+						  [&](int row){return ref_pair<volatile Row,volatile Row_Extension>{sst.table[row],sst.table[row]}; },
+						  sst.get_num_rows());
 						});
-			}, pb.updater_functions);
+			}, pb.updater_functions, Row_Extension_types);
 		auto curr_pred = pb.curr_pred;
-		std::function<bool (const SST&)> getter = [curr_pred](const SST& sst){
-			const auto &row = sst.table[sst.get_local_index()];
-			return curr_pred(row,row);};
+		std::function<bool (volatile const InternalRow&, int pre_num)> getter = [curr_pred](volatile const InternalRow& row, int pre_num){
+			return curr_pred(row,row,pre_num);
+		};
 		return tuple_cat(make_tuple(getter), constructor_helper<index + 1>(rest...));
 	}
 
@@ -218,13 +221,13 @@ class SST {
 	SST(const vector<int> &_members, int _node_rank, decltype(named_functions));
         virtual ~SST();
         /** Accesses a local or remote row. */
-        volatile Row & get(int index);
+        volatile InternalRow & get(int index);
         /** Read-only access to a local or remote row, for use in const contexts. */
-        const volatile Row & get(int index) const;
+        const volatile InternalRow & get(int index) const;
         /** Accesses a local or remote row using the [] operator. */
-        volatile Row & operator [](int index);
+        volatile InternalRow & operator [](int index);
         /** Read-only [] operator for a local or remote row, for use in const contexts. */
-        const volatile Row & operator[](int index) const;
+        const volatile InternalRow & operator[](int index) const;
         int get_num_rows() const;
         /** Gets the index of the local row in the table. */
         int get_local_index() const;
@@ -237,6 +240,17 @@ class SST {
         /** Does a TCP sync with each member of the SST. */
         void sync_with_members() const;
 
+	/** 
+	 * Retrieve a previously-stored named predicate and call it. 
+	 * Please note that this is *only* for combinator-built predicates, 
+	 * *not* named functions.
+	 */
+	template<NameEnum name>
+	bool call_named_predicate(volatile const InternalRow& ir, int backtrack = 0) const{
+		assert(static_cast<int>(name) >= NamedFunctionTypePack::size::value);
+		return std::get<static_cast<int>(name)>(named_functions)(ir,backtrack);
+	}
+	
         class Predicates;
         /** Predicate management object for this SST. */
         Predicates& predicates;

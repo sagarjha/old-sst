@@ -11,6 +11,8 @@ namespace sst {
 	namespace util {
 		template<typename L, typename R>
 		struct ref_pair{
+			using l_t = L;
+			using r_t = R;
 			const L &l;
 			const R &r;
 		};

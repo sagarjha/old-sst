@@ -98,7 +98,8 @@ SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::~SST
  * @return A reference to the row structure stored at the requested row.
  */
 template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-volatile Row & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::get(int index) {
+volatile typename SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::InternalRow &
+SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::get(int index) {
     // check that the index is within range
     assert(index >= 0 && index < num_members);
 
@@ -113,7 +114,7 @@ volatile Row & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredi
  * @return A reference to the row structure stored at the requested row.
  */
 template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-const volatile Row & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::get(int index) const {
+const volatile typename SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::InternalRow & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::get(int index) const {
     assert(index >= 0 && index < num_members);
     return table[index];
 }
@@ -122,7 +123,7 @@ const volatile Row & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRo
  * Simply calls the const get function.
  */
 template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-const volatile Row & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::operator [](int index) const {
+const volatile typename SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::InternalRow & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::operator [](int index) const {
     return get(index);
 }
 
@@ -130,7 +131,7 @@ const volatile Row & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRo
  * Simply calls the get function.
  */
 template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-volatile Row & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::operator [](int index) {
+volatile typename SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::InternalRow & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::operator [](int index) {
     return get(index);
 }
 
@@ -372,13 +373,13 @@ SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST_
 
 
 template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-const Row & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST_Snapshot::get(int index) const {
+const typename SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::InternalRow & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST_Snapshot::get(int index) const {
     assert(index >= 0 && index < num_members);
     return table[index];
 }
 
 template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-const Row & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST_Snapshot::operator[](int index) const {
+const typename SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::InternalRow & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST_Snapshot::operator[](int index) const {
     return get(index);
 }
 
