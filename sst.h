@@ -251,6 +251,12 @@ class SST {
 		return std::get<static_cast<int>(name)>(named_functions)(ir,backtrack);
 	}
 	
+	template<NameEnum name>
+	bool call_named_predicate(const int row_index, int backtrack = 0) const{
+		return call_named_predicate<name>((*this)[row_index],backtrack);
+	}
+
+	
         class Predicates;
         /** Predicate management object for this SST. */
         Predicates& predicates;
