@@ -47,8 +47,14 @@ int main () {
   }
   
   // create a new shared state table with all the members
-  SST<SimpleRow, Mode::Writes> *sst = new SST<SimpleRow, Mode::Writes> (members, node_rank);
+  enum class Name {name};
+  auto test_pred_pre = as_row_pred(Name::name, [](volatile const SimpleRow&) -> bool {return true;});
+  using namespace predicate_builder;
+  auto test_pred = E(E(E(E(test_pred_pre))));
+  using this_SST = SST<SimpleRow, Mode::Writes, Name, NamedFunctionTuples<void>, NamedRowPredicates<decltype(test_pred)> >;
+  this_SST *sst = new this_SST (members, node_rank,test_pred);
   const int local = sst->get_local_index();
+  sst->call_named_predicate<Name::name>(local);
 
   // there are only 2 nodes; r_index is the index of the remote node
   int r_index = num_nodes-node_rank-1;
@@ -63,12 +69,12 @@ int main () {
   // start the experiment
   for (int i = 0; i < num_times; ++i) {
     // the predicate. Detects if the remote entry is greater than 0
-    auto f = [r_index] (const SST<SimpleRow, Mode::Writes>& sst) {return sst[r_index].a > 0;};
+    auto f = [r_index] (const this_SST& sst) {return sst[r_index].a > 0;};
     
     // the initiator node
     if (node_rank == 0) {
 	  // the trigger for the predicate. outputs time.
-	  auto g = [&end_times, i] (SST<SimpleRow, Mode::Writes>& sst) {
+	  auto g = [&end_times, i] (this_SST& sst) {
 		  end_times[i] = experiments::get_realtime_clock();
 	  };
 
@@ -90,7 +96,7 @@ int main () {
     // the helper node
     else {
       // the trigger for the predicate. sets own entry in response
-      auto g = [] (SST<SimpleRow, Mode::Writes>& sst) {
+      auto g = [] (this_SST& sst) {
 		  sst[sst.get_local_index()].a = 1;
 		  sst.put();
       };
