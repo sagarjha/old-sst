@@ -133,7 +133,7 @@ class SST {
         unique_ptr<volatile InternalRow[]> table;
 	/** List of functions needed to update row predicates */
 	using row_predicate_updater_t = std::function<void (SST&)>;
-	std::vector<row_predicate_updater_t> row_predicate_updater_functions; //should be of size NamedPredicatesTypePack::num_updater_functions:::value
+	const std::vector<row_predicate_updater_t> row_predicate_updater_functions; //should be of size NamedPredicatesTypePack::num_updater_functions:::value
 	
         /** RDMA resources vector, one for each member. */
         vector<unique_ptr<resources>> res_vec;
@@ -142,25 +142,30 @@ class SST {
 
         /** Base case for the recursive constructor_helper with no template parameters. */
         template<int index>
-        auto constructor_helper() {
-            return std::tuple<>{};
+        auto constructor_helper() const {
+			using namespace std;
+            return make_pair(tuple<>{},vector<row_predicate_updater_t>{});
         }
+	
         /** Helper function for the constructor that recursively unpacks NamedFunction template parameters. */
         template<int index, NameEnum Name, typename NamedFunctionRet, typename... RestFunctions>
-        auto constructor_helper(const NamedFunction<NameEnum, Name, const SST, NamedFunctionRet> &firstFunc, const RestFunctions&... rest) {
+        auto constructor_helper(const NamedFunction<NameEnum, Name, const SST, NamedFunctionRet> &firstFunc, const RestFunctions&... rest) const {
             using namespace std;
             static_assert(static_cast<int>(Name) == index, "Error: non-enum name, or name used out-of-order.");
-            return tuple_cat(make_tuple(firstFunc.fun), constructor_helper<index + 1>(rest...));
+			auto rec_call_res = constructor_helper<index + 1>(rest...);
+            return make_pair(tuple_cat(make_tuple(firstFunc.fun), rec_call_res.first),rec_call_res.second);
         }
 
 	/** Helper function for the constructor that recursively unpacks Named RowPredicate template parameters. */
 
 	template<int index, NameEnum Name, std::size_t num_stored_bools, typename... RestFunctions>
-	auto constructor_helper(const PredicateBuilder<Row,num_stored_bools,NameEnum,Name> &pb, const RestFunctions&... rest){
+	auto constructor_helper(const PredicateBuilder<Row,num_stored_bools,NameEnum,Name> &pb, const RestFunctions&... rest) const {
 		using namespace std;
 		using namespace util;
 		static_assert(static_cast<int>(Name) == index, "Error: non-enum name, or name used out-of-order.");
 		typename std::decay_t<decltype(pb)>::row_extension_ptrs_t Row_Extension_types;
+		auto rec_call_res = constructor_helper<index + 1>(rest...);
+		auto &row_predicate_updater_functions = rec_call_res.second;
 		for_each([&](const auto& f, auto const * const RE_type){
 				row_predicate_updater_functions.push_back([f](SST& sst) -> void{
 						using Row_Extension = decay_t<decltype(*RE_type)>;
@@ -173,7 +178,7 @@ class SST {
 		std::function<bool (volatile const InternalRow&, int pre_num)> getter = [curr_pred](volatile const InternalRow& row, int pre_num){
 			return curr_pred(row,row,pre_num);
 		};
-		return tuple_cat(make_tuple(getter), constructor_helper<index + 1>(rest...));
+		return make_pair(tuple_cat(make_tuple(getter), rec_call_res.first),row_predicate_updater_functions);
 	}
 
         //Functions for background threads to run
@@ -218,7 +223,7 @@ class SST {
          * @param _node_rank The node rank of the local node, i.e. the one on which
          * this code is running.
          */
-	SST(const vector<int> &_members, int _node_rank, decltype(named_functions));
+	SST(const vector<int> &_members, int _node_rank, std::pair<decltype(named_functions),std::vector<row_predicate_updater_t> >);
         virtual ~SST();
         /** Accesses a local or remote row. */
         volatile InternalRow & get(int index);
