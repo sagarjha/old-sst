@@ -24,7 +24,6 @@
 #include "tcp.h"
 #include "verbs.h"
 
-using std::vector;
 using std::string;
 using std::cout;
 using std::cerr;
@@ -60,7 +59,7 @@ const char *dev_name = NULL;
 /** Local IB port to work with. */
 int ib_port = 1;
 /** GID index to use. */
-int gid_idx = -1;
+int gid_idx = 0;
 
 /** Structure containing global system resources. */
 struct global_resources {
