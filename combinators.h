@@ -27,9 +27,9 @@ namespace sst{
 			using Row = std::decay_t<typename function_traits<F2>::template arg<0>::type>;
 			using pred_builder = PredicateBuilder<Row,0,NameEnum, Name>;
 			using Row_Extension = typename pred_builder::Row_Extension;
-			return E(pred_builder{
-					[f](const volatile Row &r, const volatile Row_Extension&, int zero){
-						assert(zero == 0); return f(r);},std::tuple<>{}});
+			return pred_builder{
+				[f](const volatile Row &r, const volatile Row_Extension&, int zero){
+					assert(zero == 0); return f(r);},std::tuple<>{}};
 		}
 
 #define as_row_pred(name, f...) ::sst::predicate_builder::as_row_pred_f<decltype(name),name>(f)
