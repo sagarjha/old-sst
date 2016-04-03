@@ -40,5 +40,8 @@ namespace sst{
 			typename std::integral_constant<
 			std::size_t,
 			util::sum(PB::num_updater_functions::value, PredBuilders::num_updater_functions::value...)>::type;
+
+		using NamedRowPredicatesTypePack = NamedRowPredicates;
+		using NamedFunctionTypePack = NamedFunctionTuples<void>;
 	};
 }

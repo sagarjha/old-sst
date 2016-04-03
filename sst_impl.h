@@ -15,8 +15,8 @@
 namespace sst {
 
 
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST(
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+SST<Row, ImplMode, NameEnum, RowExtras>::SST(
 	const vector<int> &_members, int _node_rank,
 	std::pair<decltype(named_functions),std::vector<row_predicate_updater_t> > row_preds) :
 	named_functions(row_preds.first), members(_members.size()), num_members(_members.size()),
@@ -84,8 +84,8 @@ SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST(
  * Destructor for the state table; sets thread_shutdown to true so that
  * detached background threads exit cleanly.
  */
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::~SST() {
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+SST<Row, ImplMode, NameEnum, RowExtras>::~SST() {
     thread_shutdown = true;
     delete &predicates;
 }
@@ -99,9 +99,9 @@ SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::~SST
  * @param index The index of the row to access.
  * @return A reference to the row structure stored at the requested row.
  */
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-volatile typename SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::InternalRow &
-SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::get(int index) {
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+volatile typename SST<Row, ImplMode, NameEnum, RowExtras>::InternalRow &
+SST<Row, ImplMode, NameEnum, RowExtras>::get(int index) {
     // check that the index is within range
     assert(index >= 0 && index < num_members);
 
@@ -115,8 +115,8 @@ SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::get(
  * @param index The index of the row to access.
  * @return A reference to the row structure stored at the requested row.
  */
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-const volatile typename SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::InternalRow & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::get(int index) const {
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+const volatile typename SST<Row, ImplMode, NameEnum, RowExtras>::InternalRow & SST<Row, ImplMode, NameEnum, RowExtras>::get(int index) const {
     assert(index >= 0 && index < num_members);
     return table[index];
 }
@@ -124,24 +124,24 @@ const volatile typename SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, Name
 /**
  * Simply calls the const get function.
  */
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-const volatile typename SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::InternalRow & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::operator [](int index) const {
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+const volatile typename SST<Row, ImplMode, NameEnum, RowExtras>::InternalRow & SST<Row, ImplMode, NameEnum, RowExtras>::operator [](int index) const {
     return get(index);
 }
 
 /**
  * Simply calls the get function.
  */
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-volatile typename SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::InternalRow & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::operator [](int index) {
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+volatile typename SST<Row, ImplMode, NameEnum, RowExtras>::InternalRow & SST<Row, ImplMode, NameEnum, RowExtras>::operator [](int index) {
     return get(index);
 }
 
 /**
  * @return The number of rows in the table.
  */
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-int SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::get_num_rows() const {
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+int SST<Row, ImplMode, NameEnum, RowExtras>::get_num_rows() const {
     return num_members;
 }
 
@@ -152,8 +152,8 @@ int SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::
  *
  * @return The index of the local row.
  */
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-int SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::get_local_index() const {
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+int SST<Row, ImplMode, NameEnum, RowExtras>::get_local_index() const {
     return member_index;
 }
 
@@ -163,8 +163,8 @@ int SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::
  *
  * @return A copy of all the SST's rows in their current state.
  */
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-std::unique_ptr<typename SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST_Snapshot> SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::get_snapshot() const {
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+std::unique_ptr<typename SST<Row, ImplMode, NameEnum, RowExtras>::SST_Snapshot> SST<Row, ImplMode, NameEnum, RowExtras>::get_snapshot() const {
         return std::make_unique<SST_Snapshot>(table, num_members, named_functions);
 }
 
@@ -175,8 +175,8 @@ std::unique_ptr<typename SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, Nam
  * and should be called after SST initialization to ensure all nodes have
  * finished initializing their local SST code.
  */
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::sync_with_members() const {
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+void SST<Row, ImplMode, NameEnum, RowExtras>::sync_with_members() const {
     int node_rank, sst_index;
     for (auto const& rank_index : members_by_rank) {
         std::tie(node_rank, sst_index) = rank_index;
@@ -190,8 +190,8 @@ void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>:
 /**
  * If this SST is in Writes mode, this function does nothing.
  */
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::refresh_table() {
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+void SST<Row, ImplMode, NameEnum, RowExtras>::refresh_table() {
     if (ImplMode == Mode::Reads) {
         for (int index = 0; index < num_members; ++index) {
             if (index == member_index) {
@@ -214,8 +214,8 @@ void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>:
  * thread to continuously keep the local SST table updated. If this SST is in
  * Writes mode, this function does nothing.
  */
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::read() {
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+void SST<Row, ImplMode, NameEnum, RowExtras>::read() {
     if(ImplMode == Mode::Reads) {
         while (!thread_shutdown) {
             refresh_table();
@@ -232,8 +232,8 @@ void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>:
  * continuously evaluates named functions one by one, and updates the local
  * row's observed values of those functions.
  */
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::detect() {
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
     while (!thread_shutdown) {
         //Evaluate named functions
         util::for_each([&](auto named_fp, auto& value_slot){
@@ -294,8 +294,8 @@ void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>:
  * the other members of the SST group. If this SST is in Reads mode, this
  * function does nothing.
  */
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::put() {
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+void SST<Row, ImplMode, NameEnum, RowExtras>::put() {
     if (ImplMode == Mode::Writes) {
         for (int index = 0; index < num_members; ++index) {
             if (index == member_index) {
@@ -327,8 +327,8 @@ void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>:
  * row to write
  * @param size The number of bytes to write, starting at the offset.
  */
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::put(long long int offset, long long int size) {
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+void SST<Row, ImplMode, NameEnum, RowExtras>::put(long long int offset, long long int size) {
     if (ImplMode == Mode::Writes) {
         for (int index = 0; index < num_members; ++index) {
             if (index == member_index) {
@@ -354,8 +354,8 @@ void SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>:
  * @param _num_members The number of members (rows) in the SST
  * @param _named_functions A reference to the SST's list of named functions
  */
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST_Snapshot::SST_Snapshot(
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+SST<Row, ImplMode, NameEnum, RowExtras>::SST_Snapshot::SST_Snapshot(
         const unique_ptr<volatile InternalRow[]>& _table, int _num_members) :
         num_members(_num_members), table(new InternalRow[num_members]) {
 
@@ -364,8 +364,8 @@ SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST_
             num_members * sizeof(InternalRow));
 }
 
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST_Snapshot::SST_Snapshot(
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+SST<Row, ImplMode, NameEnum, RowExtras>::SST_Snapshot::SST_Snapshot(
         const SST_Snapshot& to_copy) :
         num_members(to_copy.num_members), table(new InternalRow[num_members]) {
 
@@ -374,14 +374,14 @@ SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST_
 }
 
 
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-const typename SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::InternalRow & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST_Snapshot::get(int index) const {
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+const typename SST<Row, ImplMode, NameEnum, RowExtras>::InternalRow & SST<Row, ImplMode, NameEnum, RowExtras>::SST_Snapshot::get(int index) const {
     assert(index >= 0 && index < num_members);
     return table[index];
 }
 
-template<class Row, Mode ImplMode, typename NameEnum, typename NamedFunctionTypePack, typename NamedRowPredicatePack>
-const typename SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::InternalRow & SST<Row, ImplMode, NameEnum, NamedFunctionTypePack, NamedRowPredicatePack>::SST_Snapshot::operator[](int index) const {
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+const typename SST<Row, ImplMode, NameEnum, RowExtras>::InternalRow & SST<Row, ImplMode, NameEnum, RowExtras>::SST_Snapshot::operator[](int index) const {
     return get(index);
 }
 

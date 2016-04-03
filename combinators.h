@@ -61,7 +61,9 @@ namespace sst {
 		const std::function<bool (volatile const Row&, volatile const Row_Extension&, int)> curr_pred;
 		const updater_functions_t updater_functions;
 	};
-													   
+
+	template<typename, typename...> struct NamedFunctionTuples;
+	template<typename ...> struct NamedRowPredicates;
 	//this is an immutable struct
 	template<typename Row, std::size_t num_stored_bools,typename NameEnum, NameEnum Name>
 	struct PredicateBuilder {
@@ -94,6 +96,10 @@ namespace sst {
 
 		PredicateBuilder(const old_updater_functions_t & ufa, const updater_function_t &f, const decltype(curr_pred) curr_pred):
 			updater_functions(std::tuple_cat(ufa,std::make_tuple(f))),curr_pred(curr_pred){}
+
+		//for convenience when parameterizing SST
+		using NamedRowPredicatesTypePack = NamedRowPredicates<PredicateBuilder>;
+		using NamedFunctionTypePack = NamedFunctionTuples<void>;
 	};
 
 	namespace predicate_builder {

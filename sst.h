@@ -56,7 +56,20 @@ struct NamedFunctionTuples {
         using return_types = std::tuple<NamedFunctionRets...>;
         using function_types = std::tuple<NamedFunctionRets (*) (NamedFunctionParam&) ...>;
         using size = std::integral_constant<int, sizeof...(NamedFunctionRets)>;
+	using NamedRowPredicatesTypePack = NamedRowPredicates<>;
+	using NamedFunctionTypePack = NamedFunctionTuples;
 };
+
+	struct NoExtras {
+		using NamedRowPredicatesTypePack = NamedRowPredicates<>;
+		using NamedFunctionTypePack = NamedFunctionTuples<void>;
+	};
+
+	template<typename RowPredicates, typename FunctionTuples>
+	struct Extras {
+		using NamedRowPredicatesTypePack = RowPredicates;
+		using NamedFunctionTypePack = FunctionTuples;
+	};
 
 	
 /**
@@ -74,9 +87,12 @@ struct NamedFunctionTuples {
  */
 template<class Row, Mode ImplMode = Mode::Writes,
 		 typename NameEnum = util::NullEnum,
-		 typename NamedRowPredicatesTypePack = NamedRowPredicates<>,
-		 typename NamedFunctionTypePack = NamedFunctionTuples<void> >
+		 typename RowExtras = NoExtras>
 class SST {
+
+	using NamedRowPredicatesTypePack = typename RowExtras::NamedRowPredicatesTypePack;
+	using NamedFunctionTypePack = typename RowExtras::NamedFunctionTypePack;
+	
         //Row struct must be POD. In addition, it should not contain any pointer types
 	static_assert(std::is_pod<Row>::value, "Error! Row type must be POD.");
 	//static_assert(forall_type_list<this should be is_base with the Row!, NamedRowPredicatesTypePack>(),"Error: RowPredicates built on wrong row!");
