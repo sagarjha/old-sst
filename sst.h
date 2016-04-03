@@ -74,8 +74,8 @@ struct NamedFunctionTuples {
  */
 template<class Row, Mode ImplMode = Mode::Writes,
 		 typename NameEnum = util::NullEnum,
-		 typename NamedFunctionTypePack = NamedFunctionTuples<void>,
-		 typename NamedRowPredicatesTypePack = NamedRowPredicates<> >
+		 typename NamedRowPredicatesTypePack = NamedRowPredicates<>,
+		 typename NamedFunctionTypePack = NamedFunctionTuples<void> >
 class SST {
         //Row struct must be POD. In addition, it should not contain any pointer types
 	static_assert(std::is_pod<Row>::value, "Error! Row type must be POD.");

@@ -58,7 +58,7 @@ int main () {
   using namespace predicate_builder;
   auto test_pred = E(test_pred_pre);
   static_assert(decltype(test_pred)::num_updater_functions::value >= 1,"why aren't there any?");
-  using this_SST = SST<SimpleRow, Mode::Writes, Name, NamedFunctionTuples<void>, NamedRowPredicates<decltype(test_pred)> >;
+  using this_SST = SST<SimpleRow, Mode::Writes, Name, NamedRowPredicates<decltype(test_pred)> >;
   this_SST *sst = new this_SST (members, node_rank,test_pred);
   const int local = sst->get_local_index();
   using namespace std::chrono;
