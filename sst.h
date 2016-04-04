@@ -221,7 +221,7 @@ class SST {
          */
 	template<typename... NamedFunctions>
 	SST(const vector<int> &_members, int _node_rank) :
-		SST(_members, _node_rank,std::tuple<>{}) {}
+	SST(_members, _node_rank,std::pair<std::tuple<>, std::vector<row_predicate_updater_t> >{}) {}
 
 	template<NameEnum Name, std::size_t num_stored_bools, typename... RestFunctions>
 	SST(const vector<int> &_members, int _node_rank, const PredicateBuilder<Row,num_stored_bools,NameEnum,Name> &pb, RestFunctions... named_funs) :
