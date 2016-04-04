@@ -1,4 +1,5 @@
 #include <iostream>
+#include <map>
 #include <vector>
 #include <string>
 #include <stdio.h>
@@ -10,9 +11,10 @@
 #include "../verbs.h"
 
 using std::cout;
+using std::vector;
+using std::map;
 using std::endl;
 using std::cin;
-using std::vector;
 using std::string;
 
 using namespace sst;
@@ -40,9 +42,9 @@ void *poll_reads (void *nothing) {
   return NULL;
 }
 
-void initialize(int num_nodes, int node_rank, const vector <string> & ip_addrs) {
+void initialize(int node_rank, const map <uint32_t, string> & ip_addrs) {
   // initialize tcp connections
-  tcp_initialize(num_nodes, node_rank, ip_addrs);
+  tcp_initialize(node_rank, ip_addrs);
   
   // initialize the rdma resources
   verbs_initialize();
@@ -56,13 +58,13 @@ int main () {
   cin >> num_nodes >> node_rank;
 
   // input the ip addresses
-  vector <string> ip_addrs (num_nodes);
+  map <uint32_t, string> ip_addrs;
   for (int i = 0; i < num_nodes; ++i) {
     cin >> ip_addrs[i];
   }
 
   // create all tcp connections and initialize global rdma resources
-  initialize(num_nodes, node_rank, ip_addrs);
+  initialize(node_rank, ip_addrs);
 
   char *write_buf, *read_buf;
   write_buf = (char *) malloc (size);

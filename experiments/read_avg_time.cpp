@@ -1,4 +1,5 @@
 #include <iostream>
+#include <map>
 #include <fstream>
 
 #include "../verbs.h"
@@ -23,13 +24,13 @@ int main () {
   cin >> node_rank;
   
   // input the ip addresses
-  vector <string> ip_addrs (num_nodes);
+  map <uint32_t, string> ip_addrs;
   for (int i = 0; i < num_nodes; ++i) {
     cin >> ip_addrs[i];
   }
   
   // initialize tcp connections
-  tcp_initialize(num_nodes, node_rank, ip_addrs);
+  tcp_initialize(node_rank, ip_addrs);
   
   // initialize the rdma resources
   verbs_initialize();

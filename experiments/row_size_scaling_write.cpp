@@ -1,12 +1,13 @@
 #include <cstdlib>
+#include <cstddef>
 #include <ctime>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <random>
 #include <string>
 #include <tuple>
 #include <vector>
-#include <cstddef>
 
 #include "../sst.h"
 #include "../tcp.h"
@@ -16,6 +17,7 @@
 #include "row_size_scaling.h"
 
 using std::vector;
+using std::map;
 using std::string;
 using std::cin;
 using std::cout;
@@ -54,7 +56,7 @@ int main (int argc, char** argv) {
 	node_config_stream >> num_nodes >> this_node_rank;
 
 	// input the ip addresses
-	vector <string> ip_addrs (num_nodes);
+	map <uint32_t, string> ip_addrs;
 	for (int i = 0; i < num_nodes; ++i) {
 		node_config_stream >> ip_addrs[i];
 	}
@@ -65,7 +67,7 @@ int main (int argc, char** argv) {
 
 
 	// initialize tcp connections
-	tcp::tcp_initialize(num_nodes, this_node_rank, ip_addrs);
+	tcp::tcp_initialize(this_node_rank, ip_addrs);
 
 	// initialize the rdma resources
 	verbs_initialize();

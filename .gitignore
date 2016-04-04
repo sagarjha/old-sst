@@ -36,3 +36,4 @@ experiments/token_passing
 experiments/two_connections
 experiments/write_avg_time
 routing/router_experiment
+/experiments/named_predicate_test

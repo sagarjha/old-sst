@@ -5,11 +5,12 @@
 
 
 #include <iostream>
+#include <map>
+#include <vector>
 #include <fstream>
 #include <cstdlib>
 #include <pthread.h>
 #include <thread>
-#include <vector>
 #include <string.h>
 #include <time.h>
 #include <chrono>
@@ -18,9 +19,10 @@
 #include "../verbs.h"
 
 using std::cout;
+using std::vector;
+using std::map;
 using std::endl;
 using std::cin;
-using std::vector;
 using std::string;
 
 using namespace sst;
@@ -49,7 +51,6 @@ int num_reads = 10000;
 
 // resources for the nodes
 vector <resources *> res_vec;
-
 
 void *post_reads (void *tid) {
   int thread_id = (long) tid;
@@ -97,9 +98,9 @@ void *poll_reads (void *tid) {
 }
 
 
-void initialize(int num_nodes, int node_rank, const vector <string> & ip_addrs) {
+void initialize(int node_rank, const map <uint32_t, string> & ip_addrs) {
   // initialize tcp connections
-  tcp_initialize(num_nodes, node_rank, ip_addrs);
+  tcp_initialize(node_rank, ip_addrs);
   // initialize the rdma resources
   verbs_initialize();
 }
@@ -115,13 +116,13 @@ int main () {
   cin >> num_nodes;
   cin >> node_rank;
   // input the ip addresses
-  vector <string> ip_addrs (num_nodes);
+  map <uint32_t, string> ip_addrs;
   for (int i = 0; i < num_nodes; ++i) {
     cin >> ip_addrs[i];
   }
   
   // create all tcp connections and initialize global rdma resources
-  initialize(num_nodes, node_rank, ip_addrs);
+  initialize(node_rank, ip_addrs);
 
   // create memory for RDMA operations (with all nodes, we share the same buffer, which should not cause contention. CHECK THIS!)
   char *write_buf, *read_buf;

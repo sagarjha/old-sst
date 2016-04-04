@@ -1,4 +1,5 @@
 #include <iostream>
+#include <map>
 #include <fstream>
 #include <vector>
 
@@ -15,9 +16,9 @@ long long int max_size = 10000;
 // number of reruns
 long long int num_reruns = 100;
 
-void initialize(int num_nodes, int node_rank, const vector <string> & ip_addrs) {
+void initialize(int node_rank, const map <uint32_t, string> & ip_addrs) {
   // initialize tcp connections
-  tcp_initialize(num_nodes, node_rank, ip_addrs);
+  tcp_initialize(node_rank, ip_addrs);
   
   // initialize the rdma resources
   verbs_initialize();
@@ -34,20 +35,20 @@ int main () {
   fout_poll.open("data_remote_write_poll.csv");
 
   vector <long long int> write_times (num_reruns), poll_times (num_reruns);
-  
+    
   // input number of nodes and the local node id
   int num_nodes, node_rank;
   cin >> num_nodes;
   cin >> node_rank;
 
   // input the ip addresses
-  vector <string> ip_addrs (num_nodes);
+  map <uint32_t, string> ip_addrs;
   for (int i = 0; i < num_nodes; ++i) {
     cin >> ip_addrs[i];
   }
 
   // create all tcp connections and initialize global rdma resources
-  initialize(num_nodes, node_rank, ip_addrs);
+  initialize(node_rank, ip_addrs);
   
   for (long long int size = 10; size < max_size; ++size) {
     // create buffer for write and read

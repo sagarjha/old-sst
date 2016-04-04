@@ -1,4 +1,5 @@
 #include <iostream>
+#include <map>
 #include <fstream>
 #include <ctime>
 #include <cstdlib>
@@ -9,6 +10,7 @@
 #define LOCAL sst.get_local_index()
 
 using std::vector;
+using std::map;
 using std::string;
 using std::cin;
 using std::cout;
@@ -35,7 +37,7 @@ int main () {
   cin >> num_nodes >> node_rank;
 
   // input the ip addresses
-  vector <string> ip_addrs (num_nodes);
+  map <uint32_t, string> ip_addrs;
   for (int i = 0; i < num_nodes; ++i) {
     cin >> ip_addrs[i];
   }
@@ -44,7 +46,7 @@ int main () {
   cin >> tcp::port;
 
   // initialize tcp connections
-  tcp_initialize(num_nodes, node_rank, ip_addrs);
+  tcp_initialize(node_rank, ip_addrs);
   
   // initialize the rdma resources
   verbs_initialize();

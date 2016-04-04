@@ -1,8 +1,8 @@
 #include <iostream>
+#include <map>
 #include <string>
 #include <string.h>
 #include <fstream>
-#include <vector>
 
 #include "../verbs.h"
 #include "../tcp.h"
@@ -11,9 +11,9 @@ using namespace std;
 using namespace sst;
 using namespace sst::tcp;
 
-void initialize(int num_nodes, int node_rank, const vector <string> & ip_addrs) {
+void initialize(int node_rank, const map <uint32_t, string> & ip_addrs) {
   // initialize tcp connections
-  tcp_initialize(num_nodes, node_rank, ip_addrs);
+  tcp_initialize(node_rank, ip_addrs);
   
   // initialize the rdma resources
   verbs_initialize();
@@ -29,13 +29,13 @@ int main () {
   cin >> node_rank;
 
   // input the ip addresses
-  vector <string> ip_addrs (num_nodes);
+  map <uint32_t, string> ip_addrs;
   for (int i = 0; i < num_nodes; ++i) {
     cin >> ip_addrs[i];
   }
 
   // create all tcp connections and initialize global rdma resources
-  initialize(num_nodes, node_rank, ip_addrs);
+  initialize(node_rank, ip_addrs);
 
   int size = 2048;
   int num_reruns = 10000;
