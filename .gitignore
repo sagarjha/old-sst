@@ -37,3 +37,11 @@ experiments/two_connections
 experiments/write_avg_time
 routing/router_experiment
 /experiments/named_predicate_test
+/experiments/data_remote_read.csv
+/experiments/data_remote_read_bw.csv
+/experiments/data_remote_read_poll.csv
+/experiments/data_remote_read_read.csv
+/experiments/named_predicate_test.cpp~
+/experiments/script_copy.sh
+/script_copy.sh
+/script_copy.sh~
