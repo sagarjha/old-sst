@@ -54,7 +54,8 @@ int main () {
   auto test_pred_pre = as_row_pred(Name::name, [](volatile const SimpleRow&) -> bool {return true;});
   using namespace predicate_builder;
   auto test_pred = E(E(E(E(test_pred_pre))));
-  auto second_pred = as_row_pred(Name::newname, [](volatile const SimpleRow&) -> int {return 7;});
+  auto second_pred_pre = as_row_pred(Name::newname, [](volatile const SimpleRow&) -> int {return 7;});
+  auto second_pred = Min(second_pred_pre);
   using this_SST = SST<SimpleRow, Mode::Writes, Name, NamedRowPredicates<decltype(test_pred),decltype(second_pred)> >;
   this_SST *sst = new this_SST (members, node_rank,test_pred,second_pred);
   const int local = sst->get_local_index();

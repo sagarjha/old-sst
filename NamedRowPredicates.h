@@ -7,8 +7,8 @@ namespace sst{
 		return true;
 	}
 	
-	template<typename Row, typename ExtensionList, typename NameEnum, NameEnum Name, typename... Rst>
-	constexpr bool all_predicate_builders(PredicateBuilder<Row,ExtensionList, NameEnum, Name> const * const pb, Rst const * const ... rst){
+	template<typename Row, typename ExtensionList, typename... Rst>
+	constexpr bool all_predicate_builders(PredicateBuilder<Row,ExtensionList> const * const pb, Rst const * const ... rst){
 		static_assert(std::is_pod<Row>::value,"Error: Predicate Builders need POD rows!");
 		return all_predicate_builders(rst...);
 	}
@@ -27,12 +27,12 @@ namespace sst{
 	
 	template<typename PB, typename ... PredBuilders>
 	struct NamedRowPredicates<PB, PredBuilders...> {
-		static_assert(all_predicate_builders(util::mke_p<PB>()), "Error: this parameter pack must be of predicate builders!");
-		static_assert(all_predicate_builders(util::mke_p<PredBuilders>()...), "Error: this parameter pack must be of predicate builders!");
+		static_assert(all_predicate_builders(util::mke_p<PB>(), util::mke_p<PredBuilders>()...),
+					  "Error: this parameter pack must be of predicate builders!");
 		using is_tail = std::false_type;
 		using predicate_types = std::tuple<PB, PredBuilders ...>;
 		using row_types = std::tuple<typename PB::Row_Extension, typename PredBuilders::Row_Extension...>;
-		using getter_types = std::tuple<std::decay_t<decltype(PB::curr_pred)>, std::decay_t<decltype(PredBuilders::curr_pred)>...>;
+		//using getter_types = std::tuple<std::decay_t<decltype(PB::curr_pred)>, std::decay_t<decltype(PredBuilders::curr_pred)>...>;
 		using hd = PB;
 		using rst = NamedRowPredicates<PredBuilders...>;
 		using size = typename std::integral_constant<std::size_t, sizeof...(PredBuilders) + 1>::type;
@@ -43,5 +43,12 @@ namespace sst{
 
 		using NamedRowPredicatesTypePack = NamedRowPredicates;
 		using NamedFunctionTypePack = NamedFunctionTuples<void>;
+
+		template<typename T>
+		using Getters = std::decay_t<
+			decltype(
+				std::tuple_cat(
+					std::declval<typename PB::Getters<T> >(),
+					std::declval<typename PredBuilders::Getters<T> >()...))>;
 	};
 }

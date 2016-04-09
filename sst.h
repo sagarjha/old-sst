@@ -106,8 +106,10 @@ class SST {
 	using named_functions_t =
 		std::decay_t<decltype(
 		std::tuple_cat(std::declval<typename NamedFunctionTypePack::function_types>(),
-					   std::declval<util::n_copies<NamedRowPredicatesTypePack::size::value,
-					   std::function<bool (volatile const InternalRow&, int)> > >()))>;
+					   std::declval<typename NamedRowPredicatesTypePack::template Getters<InternalRow> >());
+		
+		//			   std::declval<util::n_copies<NamedRowPredicatesTypePack::size::value,
+		//			   std::function<bool (volatile const InternalRow&, int)> > >()))>;
 	/** List of functions we have registered to use knowledge operators on */
 	named_functions_t named_functions;
 
@@ -191,7 +193,8 @@ class SST {
 						});
 			}, pb.updater_functions, Row_Extension_types);
 		auto curr_pred = pb.curr_pred;
-		std::function<bool (volatile const InternalRow&, int pre_num)> getter = [curr_pred](volatile const InternalRow& row, int pre_num){
+		using Getter_t = std::decay_t<std::result_of_t<decltype(curr_pred)(volatile const InternalRow&, volatile const InternalRow&, int)> >;
+		std::function<Getter_t (volatile const InternalRow&, int pre_num)> getter = [curr_pred](volatile const InternalRow& row, int pre_num){
 			return curr_pred(row,row,pre_num);
 		};
 		return make_pair(tuple_cat(make_tuple(getter), rec_call_res.first),row_predicate_updater_functions);
