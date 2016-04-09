@@ -11,21 +11,24 @@
 //START declarations
 
 namespace sst{
-	template<typename Row,std::size_t,typename NameEnum, NameEnum Name>
+	template<typename Row,typename ExtensionList,typename NameEnum, NameEnum Name>
 	struct PredicateBuilder;
 	
 		namespace predicate_builder {
 
-		template<typename Row, std::size_t num_stored_bools,typename NameEnum, NameEnum Name>
-		PredicateBuilder<Row,num_stored_bools + 1, NameEnum, Name> E(const PredicateBuilder<Row, num_stored_bools, NameEnum, Name>& pb);
+		template<typename Row, typename ExtensionList,typename NameEnum, NameEnum Name>
+		PredicateBuilder<Row,typename ExtensionList::template append<bool>, NameEnum, Name>
+		E(const PredicateBuilder<Row, ExtensionList, NameEnum, Name>& pb);
 			
 			//F is a function of Row -> bool.  This will deduce that.
 		template<typename NameEnum, NameEnum Name, typename F>
 		auto as_row_pred_f(const F &f){
 			using namespace util;
 			using F2 = std::decay_t<decltype(convert(f))>;
-			using Row = std::decay_t<typename function_traits<F2>::template arg<0>::type>;
-			using pred_builder = PredicateBuilder<Row,0,NameEnum, Name>;
+			using undecayed_row = typename function_traits<F2>::template arg<0>::type;
+			using Row = std::decay_t<undecayed_row>;
+			using Entry = std::result_of_t<F(undecayed_row)>;
+			using pred_builder = PredicateBuilder<Row,TypeList<Entry>,NameEnum, Name>;
 			using Row_Extension = typename pred_builder::Row_Extension;
 			return pred_builder{
 				[f](const volatile Row &r, const volatile Row_Extension&, int zero){
@@ -43,39 +46,45 @@ namespace sst{
 //END declarations, these are implementations 
 namespace sst {
 
+	using util::TypeList;
+
 /**
  * Combinators for SST predicates.  These combinators can be used to define
  * new predicates using a simple logic language consisting of conjuction,
  * disjunction, integral-type comparison, and knowledge operators.
  */
 	
-	template<typename Row,std::size_t,typename NameEnum, NameEnum Name>
+	template<typename Row,typename ExtensionList,typename NameEnum, NameEnum Name>
 	struct PredicateBuilder;
 
-	template<typename Row,typename NameEnum, NameEnum Name>
-	struct PredicateBuilder<Row,0,NameEnum, Name> {
+	template<typename Row,typename Entry, typename NameEnum, NameEnum Name>
+	struct PredicateBuilder<Row,TypeList<Entry>,NameEnum, Name> {
 		static_assert(std::is_pod<Row>::value,"Error: POD rows required!");
 		struct Row_Extension{};
 		using updater_functions_t = std::tuple<>;
 		using row_extension_ptrs_t = std::tuple<>;
-		const std::function<bool (volatile const Row&, volatile const Row_Extension&, int)> curr_pred;
+		const std::function<Entry (volatile const Row&, volatile const Row_Extension&, int)> curr_pred;
 		const updater_functions_t updater_functions;
 	};
+
 
 	template<typename, typename...> struct NamedFunctionTuples;
 	template<typename ...> struct NamedRowPredicates;
 	//this is an immutable struct
-	template<typename Row, std::size_t num_stored_bools,typename NameEnum, NameEnum Name>
+	template<typename Row, typename ExtensionList, typename NameEnum, NameEnum Name>
 	struct PredicateBuilder {
+
+		using row_entry = typename ExtensionList::hd;
+		using tl = typename ExtensionList::tl;
 		
-		struct Row_Extension : public PredicateBuilder<Row,num_stored_bools - 1,NameEnum, Name>::Row_Extension {
-			bool stored;
+		struct Row_Extension : public PredicateBuilder<Row,tl,NameEnum, Name>::Row_Extension {
+			row_entry stored;
 		};
 		
 		typedef std::function<void (volatile Row_Extension&, std::function<util::ref_pair<volatile Row, volatile Row_Extension> (int)>, const int num_rows)> updater_function_t;
 
-		using old_updater_functions_t = typename PredicateBuilder<Row,num_stored_bools - 1, NameEnum, Name>::updater_functions_t;
-		using old_row_extension_ptrs_t = typename PredicateBuilder<Row,num_stored_bools - 1, NameEnum, Name>::row_extension_ptrs_t;
+		using old_updater_functions_t = typename PredicateBuilder<Row,tl, NameEnum, Name>::updater_functions_t;
+		using old_row_extension_ptrs_t = typename PredicateBuilder<Row,tl, NameEnum, Name>::row_extension_ptrs_t;
 		using updater_functions_t =
 			std::decay_t<
 			decltype(std::tuple_cat(
@@ -88,11 +97,11 @@ namespace sst {
 						 std::declval<old_row_extension_ptrs_t>(),
 						 std::declval<std::tuple<Row_Extension*> >()))>;
 
-		using num_updater_functions = typename std::integral_constant<std::size_t, num_stored_bools>::type;
+		using num_updater_functions = typename std::integral_constant<std::size_t, ExtensionList::size::value>::type;
 			
 		const updater_functions_t updater_functions;
 		
-		const std::function<bool (volatile const Row&, volatile const Row_Extension&, int)> curr_pred;
+		const std::function<row_entry (volatile const Row&, volatile const Row_Extension&, int)> curr_pred;
 
 		PredicateBuilder(const old_updater_functions_t & ufa, const updater_function_t &f, const decltype(curr_pred) curr_pred):
 			updater_functions(std::tuple_cat(ufa,std::make_tuple(f))),curr_pred(curr_pred){}
@@ -104,10 +113,11 @@ namespace sst {
 
 	namespace predicate_builder {
 
-		template<typename Row, std::size_t num_stored_bools,typename NameEnum, NameEnum Name>
-		PredicateBuilder<Row,num_stored_bools + 1, NameEnum, Name> E(const PredicateBuilder<Row, num_stored_bools, NameEnum, Name>& pb)  {
+		template<typename Row, typename ExtensionList,typename NameEnum, NameEnum Name>
+		PredicateBuilder<Row,typename ExtensionList::template append<bool>, NameEnum, Name>
+		E(const PredicateBuilder<Row, ExtensionList, NameEnum, Name>& pb) {
 			
-			using next_builder = PredicateBuilder<Row,num_stored_bools + 1, NameEnum, Name>;
+			using next_builder = PredicateBuilder<Row,typename ExtensionList::template append<bool>, NameEnum, Name>;
 			using Row_Extension = typename next_builder::Row_Extension;
 
 			auto curr_pred = pb.curr_pred;
@@ -132,8 +142,8 @@ namespace sst {
 
 		
 		template<typename> struct extract_row_str;
-		template<typename Row, std::size_t count, typename NameEnum, NameEnum Name>
-			struct extract_row_str<PredicateBuilder<Row,count, NameEnum, Name> >{
+		template<typename Row, typename ExtensionList, typename NameEnum, NameEnum Name>
+			struct extract_row_str<PredicateBuilder<Row,ExtensionList, NameEnum, Name> >{
 			using type = Row;
 		};
 

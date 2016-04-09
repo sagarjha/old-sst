@@ -174,8 +174,8 @@ class SST {
 
 	/** Helper function for the constructor that recursively unpacks Named RowPredicate template parameters. */
 
-	template<int index, NameEnum Name, std::size_t num_stored_bools, typename... RestFunctions>
-	auto constructor_helper(const PredicateBuilder<Row,num_stored_bools,NameEnum,Name> &pb, const RestFunctions&... rest) const {
+	template<int index, NameEnum Name, typename ExtensionList, typename... RestFunctions>
+	auto constructor_helper(const PredicateBuilder<Row,ExtensionList,NameEnum,Name> &pb, const RestFunctions&... rest) const {
 		using namespace std;
 		using namespace util;
 		static_assert(static_cast<int>(Name) == index, "Error: non-enum name, or name used out-of-order.");
@@ -223,8 +223,8 @@ class SST {
 	SST(const vector<int> &_members, int _node_rank) :
 	SST(_members, _node_rank,std::pair<std::tuple<>, std::vector<row_predicate_updater_t> >{}) {}
 
-	template<NameEnum Name, std::size_t num_stored_bools, typename... RestFunctions>
-	SST(const vector<int> &_members, int _node_rank, const PredicateBuilder<Row,num_stored_bools,NameEnum,Name> &pb, RestFunctions... named_funs) :
+	template<NameEnum Name, typename ExtensionList, typename... RestFunctions>
+	SST(const vector<int> &_members, int _node_rank, const PredicateBuilder<Row,ExtensionList,NameEnum,Name> &pb, RestFunctions... named_funs) :
 		SST(_members, _node_rank,constructor_helper<0>(pb,named_funs...)) {}
 	
 	template<NameEnum Name, typename NamedFunctionRet, typename... RestFunctions>

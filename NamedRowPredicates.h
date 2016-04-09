@@ -7,8 +7,8 @@ namespace sst{
 		return true;
 	}
 	
-	template<typename Row, std::size_t count, typename NameEnum, NameEnum Name, typename... Rst>
-	constexpr bool all_predicate_builders(PredicateBuilder<Row,count, NameEnum, Name> const * const pb, Rst const * const ... rst){
+	template<typename Row, typename ExtensionList, typename NameEnum, NameEnum Name, typename... Rst>
+	constexpr bool all_predicate_builders(PredicateBuilder<Row,ExtensionList, NameEnum, Name> const * const pb, Rst const * const ... rst){
 		static_assert(std::is_pod<Row>::value,"Error: Predicate Builders need POD rows!");
 		return all_predicate_builders(rst...);
 	}

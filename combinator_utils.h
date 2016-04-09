@@ -9,6 +9,33 @@
 
 namespace sst {
 	namespace util {
+
+		template<typename, typename...> struct TypeList;
+		/*
+		template<> struct TypeList<>{
+			using is_tail = std::true_type;
+			using size = std::integral_constant<std::size_t,0>;
+			};//*/
+
+		template<typename Single> struct TypeList<Single>{
+			using hd = Single;
+			using is_tail = std::true_type;
+			using size = std::integral_constant<std::size_t,1>;
+			template<typename T>
+			using append = TypeList<T,Single>;
+		};
+		
+		template<typename Fst, typename Snd, typename... Tl>
+		struct TypeList<Fst,Snd,Tl...> {
+			using hd = Fst;
+			using tl = TypeList<Snd,Tl...>;
+			using is_tail = std::false_type;
+			using size = std::integral_constant<std::size_t, 1 + tl::size::value >;
+			template<typename T>
+			using append = TypeList<T,Fst,Snd,Tl...>;
+		};
+
+		
 		template<typename L, typename R>
 		struct ref_pair{
 			using l_t = L;
