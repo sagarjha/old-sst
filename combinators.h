@@ -65,6 +65,7 @@ namespace sst {
 		using row_extension_ptrs_t = std::tuple<>;
 		const std::function<Entry (volatile const Row&, volatile const Row_Extension&, int)> curr_pred;
 		const updater_functions_t updater_functions;
+		using num_updater_functions = typename std::integral_constant<std::size_t, 0>::type;
 	};
 
 
@@ -97,7 +98,7 @@ namespace sst {
 						 std::declval<old_row_extension_ptrs_t>(),
 						 std::declval<std::tuple<Row_Extension*> >()))>;
 
-		using num_updater_functions = typename std::integral_constant<std::size_t, ExtensionList::size::value>::type;
+		using num_updater_functions = std::integral_constant<std::size_t, PredicateBuilder<Row,tl,NameEnum,Name>::num_updater_functions::value + 1>;
 			
 		const updater_functions_t updater_functions;
 		

@@ -50,12 +50,13 @@ int main () {
   }
   
   // create a new shared state table with all the members
-  enum class Name {name};
+  enum class Name {name, newname};
   auto test_pred_pre = as_row_pred(Name::name, [](volatile const SimpleRow&) -> bool {return true;});
   using namespace predicate_builder;
   auto test_pred = E(E(E(E(test_pred_pre))));
-  using this_SST = SST<SimpleRow, Mode::Writes, Name, decltype(test_pred) >;
-  this_SST *sst = new this_SST (members, node_rank,test_pred);
+  auto second_pred = as_row_pred(Name::newname, [](volatile const SimpleRow&) -> int {return 7;});
+  using this_SST = SST<SimpleRow, Mode::Writes, Name, NamedRowPredicates<decltype(test_pred),decltype(second_pred)> >;
+  this_SST *sst = new this_SST (members, node_rank,test_pred,second_pred);
   const int local = sst->get_local_index();
   sst->call_named_predicate<Name::name>(local);
 
