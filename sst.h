@@ -180,10 +180,8 @@ class SST {
          * order in which their rows will appear in the SST.
          * @param _node_rank The node rank of the local node, i.e. the one on which
          * this code is running.
-         * @param named_funs Zero or more NamedFunction structs representing named
-         * functions whose values the SST should track
          */
-	template<typename... NamedFunctions>
+
 	SST(const vector<int> &_members, int _node_rank) :
 	SST(_members, _node_rank,std::pair<std::tuple<>, std::vector<row_predicate_updater_t> >{}) {}
 
