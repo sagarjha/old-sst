@@ -26,6 +26,8 @@ namespace sst{
 		
 		template<typename>
 		using Getters = std::tuple<>;
+
+		using NamedRowPredicatesTypePack = NamedRowPredicates;
 	};
 	
 	template<typename PB, typename ... PredBuilders>
@@ -45,7 +47,6 @@ namespace sst{
 			util::sum(PB::num_updater_functions::value, PredBuilders::num_updater_functions::value...)>::type;
 
 		using NamedRowPredicatesTypePack = NamedRowPredicates;
-		using NamedFunctionTypePack = NamedFunctionTuples<void>;
 
 		template<typename T>
 		using Getters = std::decay_t<

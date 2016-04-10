@@ -13,7 +13,6 @@
 #include <vector>
 
 #include "util.h"
-#include "named_function.h"
 #include "verbs.h"
 #include "NamedRowPredicates.h"
 #include "combinators.h"
@@ -47,30 +46,6 @@ enum class Mode {
      * changing a variable in its local row. */
     Writes
 };
-
-
-
-template<typename NamedFunctionParam, typename ... NamedFunctionRets>
-struct NamedFunctionTuples {
-        static_assert(template_and(std::is_pod<NamedFunctionRets>::value...), "Error! Named functions must return POD.");
-        using return_types = std::tuple<NamedFunctionRets...>;
-        using function_types = std::tuple<NamedFunctionRets (*) (NamedFunctionParam&) ...>;
-        using size = std::integral_constant<int, sizeof...(NamedFunctionRets)>;
-	using NamedRowPredicatesTypePack = NamedRowPredicates<>;
-	using NamedFunctionTypePack = NamedFunctionTuples;
-};
-
-	struct NoExtras {
-		using NamedRowPredicatesTypePack = NamedRowPredicates<>;
-		using NamedFunctionTypePack = NamedFunctionTuples<void>;
-	};
-
-	template<typename RowPredicates, typename FunctionTuples>
-	struct Extras {
-		using NamedRowPredicatesTypePack = RowPredicates;
-		using NamedFunctionTypePack = FunctionTuples;
-	};
-
 	
 /**
  * The SST object, representing a single shared state table.
@@ -87,26 +62,22 @@ struct NamedFunctionTuples {
  */
 template<class Row, Mode ImplMode = Mode::Writes,
 		 typename NameEnum = util::NullEnum,
-		 typename RowExtras = NoExtras>
+		 typename RowExtras = NamedRowPredicates<> >
 class SST {
 
 	using NamedRowPredicatesTypePack = typename RowExtras::NamedRowPredicatesTypePack;
-	using NamedFunctionTypePack = typename RowExtras::NamedFunctionTypePack;
 	
-        //Row struct must be POD. In addition, it should not contain any pointer types
+	//Row struct must be POD. In addition, it should not contain any pointer types
 	static_assert(std::is_pod<Row>::value, "Error! Row type must be POD.");
 	//static_assert(forall_type_list<this should be is_base with the Row!, NamedRowPredicatesTypePack>(),"Error: RowPredicates built on wrong row!");
 	
 	
     private:
 	struct InternalRow : public Row, public util::extend_tuple_members<typename NamedRowPredicatesTypePack::row_types> {
-		typename NamedFunctionTypePack::return_types observed_values;
+		
 	};
 
-	using named_functions_t =
-		std::decay_t<decltype(
-		std::tuple_cat(std::declval<typename NamedFunctionTypePack::function_types>(),
-					   std::declval<typename NamedRowPredicatesTypePack::template Getters<const volatile InternalRow&> >()))>;
+	using named_functions_t = typename NamedRowPredicatesTypePack::template Getters<const volatile InternalRow&>;
 		
 		//			   std::declval<util::n_copies<NamedRowPredicatesTypePack::size::value,
 		//			   std::function<bool (volatile const InternalRow&, int)> > >()))>;
@@ -164,15 +135,6 @@ class SST {
 			using namespace std;
             return make_pair(tuple<>{},vector<row_predicate_updater_t>{});
         }
-	
-        /** Helper function for the constructor that recursively unpacks NamedFunction template parameters. */
-        template<int index, NameEnum Name, typename NamedFunctionRet, typename... RestFunctions>
-        auto constructor_helper(const NamedFunction<NameEnum, Name, const SST, NamedFunctionRet> &firstFunc, const RestFunctions&... rest) const {
-            using namespace std;
-            static_assert(static_cast<int>(Name) == index, "Error: non-enum name, or name used out-of-order.");
-			auto rec_call_res = constructor_helper<index + 1>(rest...);
-            return make_pair(tuple_cat(make_tuple(firstFunc.fun), rec_call_res.first),rec_call_res.second);
-        }
 
 	/** Helper function for the constructor that recursively unpacks Named RowPredicate template parameters. */
 
@@ -229,9 +191,7 @@ class SST {
 	SST(const vector<int> &_members, int _node_rank, const PredicateBuilder<Row,ExtensionList> &pb, RestFunctions... named_funs) :
 		SST(_members, _node_rank,constructor_helper<0>(pb,named_funs...)) {}
 	
-	template<NameEnum Name, typename NamedFunctionRet, typename... RestFunctions>
-	SST(const vector<int> &_members, int _node_rank, const NamedFunction<NameEnum, Name, const SST, NamedFunctionRet> &firstFunc, RestFunctions... named_funs) :
-		SST(_members, _node_rank,constructor_helper<0>(firstFunc,named_funs...)) {}
+
         /**
          * Delegate constructor to construct an SST instance without named
          * functions.
@@ -265,13 +225,9 @@ class SST {
 
 	/** 
 	 * Retrieve a previously-stored named predicate and call it. 
-	 * Please note that this is *only* for combinator-built predicates, 
-	 * *not* named functions.
 	 */
 	template<NameEnum name>
 	auto call_named_predicate(volatile const InternalRow& ir) const{
-		static_assert(static_cast<int>(name) >= NamedFunctionTypePack::size::value,
-					  "Error: NamedFunctions are deprecated; no mechanism for retrieval exists.");
 		return std::get<static_cast<int>(name)>(named_functions)(ir);
 	}
 	

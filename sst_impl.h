@@ -235,10 +235,6 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::read() {
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
     while (!thread_shutdown) {
-        //Evaluate named functions
-        util::for_each([&](auto named_fp, auto& value_slot){
-            value_slot = (*named_fp)(*this);
-        }, named_functions, table[get_local_index()].observed_values);
 
 		//update intermediate results for Row Predicates
 		for (auto &f : row_predicate_updater_functions){
