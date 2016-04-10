@@ -177,17 +177,16 @@ namespace sst {
 			//using the raw type here is necessary for renaming to be supported.
 			//however, we can no longer rely on subtyping to enforce that the
 			//correct Row_Extension type is passed in recursively.
-			//this is why there is a Prev_Row_Extension temporary defined
-			//explicitly.  More testing is warranted to ensure that this is
-			//sufficient. 
+			//this is why there is a wrapping in std::function within this function body.
 			auto updater_f = [curr_pred_raw]
 				(volatile auto& my_row, auto lookup_row, const int num_rows){
 				using Prev_Row_Extension = typename std::decay_t<decltype(my_row)>::super;
+				const std::function<bool (const volatile Row&, const volatile Prev_Row_Extension&)> curr_pred = curr_pred_raw;
 				bool result = true;
 				for (int i = 0; i < num_rows; ++i){
 					auto rowpair = lookup_row(i);
 					const volatile Prev_Row_Extension &your_row = rowpair.r;
-					if (!curr_pred_raw(rowpair.l, your_row)) result = false;
+					if (!curr_pred(rowpair.l, your_row)) result = false;
 				}
 				my_row.stored = result;
 			};
@@ -215,14 +214,13 @@ namespace sst {
 			auto curr_pred_raw = pb.curr_pred_raw;
 
 			auto updater_f = [curr_pred_raw](volatile auto& my_row, auto lookup_row, const int num_rows){
-				auto initial_val = lookup_row(0);
 				using Prev_Row_Extension = typename std::decay_t<decltype(my_row)>::super;
-				const volatile Prev_Row_Extension &your_row = initial_val.r;
-				min_t min = curr_pred_raw(initial_val.l,your_row);
+				const std::function<min_t (const volatile Row&, const volatile Prev_Row_Extension&)> curr_pred = curr_pred_raw;
+				auto initial_val = lookup_row(0);
+				min_t min = curr_pred(initial_val.l,initial_val.r);
 				for (int i = 1; i < num_rows; ++i){
 					auto rowpair = lookup_row(i);
-					const volatile Prev_Row_Extension &your_row = rowpair.r;
-					auto candidate = curr_pred_raw(rowpair.l, your_row);
+					auto candidate = curr_pred(rowpair.l, rowpair.r);
 					if (candidate < min) min = candidate;
 				}
 				my_row.stored = min;
