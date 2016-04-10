@@ -23,6 +23,9 @@ namespace sst{
 		using row_types = std::tuple<>;
 		using getter_types = std::tuple<>;
 		using size = typename std::integral_constant<std::size_t, 0>::type;
+		
+		template<typename>
+		using Getters = std::tuple<>;
 	};
 	
 	template<typename PB, typename ... PredBuilders>
@@ -48,7 +51,7 @@ namespace sst{
 		using Getters = std::decay_t<
 			decltype(
 				std::tuple_cat(
-					std::declval<typename PB::Getters<T> >(),
-					std::declval<typename PredBuilders::Getters<T> >()...))>;
+					std::declval<typename PB::template Getters<T> >(),
+					std::declval<typename PredBuilders::template Getters<T> >()...))>;
 	};
 }

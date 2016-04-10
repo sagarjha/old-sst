@@ -48,15 +48,16 @@ int main () {
   }
   
   // create a new shared state table with all the members
-  enum class Name {name};
-  auto test_pred_pre = as_row_pred(Name::name,
-				   [](volatile const SimpleRow&) -> bool
-				   {
-				     cout << "here" << endl;
-				     return true;
-				   });
+  enum class Name {outer_name, inner_name};
   using namespace predicate_builder;
-  auto test_pred = E(test_pred_pre);
+  auto test_pred_pre = name_predicate<Name,Name::inner_name>(
+	  as_row_pred(
+		  [](volatile const SimpleRow&) -> bool
+		  {
+			  cout << "here" << endl;
+			  return true;
+		  }));
+  auto test_pred = name_predicate<Name,Name::outer_name>(E(test_pred_pre));
   static_assert(decltype(test_pred)::num_updater_functions::value >= 1,"why aren't there any?");
   using this_SST = SST<SimpleRow, Mode::Writes, Name, decltype(test_pred) >;
   this_SST *sst = new this_SST (members, node_rank,test_pred);
@@ -64,7 +65,7 @@ int main () {
   using namespace std::chrono;
   std::this_thread::sleep_for (seconds(3));
   cout << "Calling named predicate" << endl;
-  bool ret = sst->call_named_predicate<Name::name>(local, 1);
+  bool ret = sst->call_named_predicate<Name::inner_name>(local);
   cout << "Return value is " << ret << endl;
 
   delete(sst);

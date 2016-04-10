@@ -106,7 +106,7 @@ class SST {
 	using named_functions_t =
 		std::decay_t<decltype(
 		std::tuple_cat(std::declval<typename NamedFunctionTypePack::function_types>(),
-					   std::declval<typename NamedRowPredicatesTypePack::template Getters<InternalRow> >());
+					   std::declval<typename NamedRowPredicatesTypePack::template Getters<const volatile InternalRow&> >()))>;
 		
 		//			   std::declval<util::n_copies<NamedRowPredicatesTypePack::size::value,
 		//			   std::function<bool (volatile const InternalRow&, int)> > >()))>;
@@ -182,15 +182,14 @@ class SST {
 		using namespace util;
 		static_assert(PredicateBuilder<Row,ExtensionList>::is_named::value,
 					  "Error: cannot build SST with unnamed predicate");
-		static_assert(PredicateBuilder<Row,ExtensionList>::name_enum_matches<NameEnum>::value,
+		static_assert(PredicateBuilder<Row,ExtensionList>::template name_enum_matches<NameEnum>::value,
 					  "Error: this predicate contains names from a different NameEnum!");
-		static_assert(static_cast<int>(Name) == index, "Error: non-enum name, or name used out-of-order.");
 
 		constexpr auto num_getters = PredicateBuilder<Row,ExtensionList>::num_getters::value;
 		auto rec_call_res = constructor_helper<index + num_getters>(rest...);
 		
-		auto &row_predicate_updater_functions = rec_call_res.second;
-		map_updaters(row_predicate_updater_functions, [](const auto& f, auto const * const RE_type){
+		std::vector<row_predicate_updater_t> &row_predicate_updater_functions = rec_call_res.second;
+		predicate_builder::map_updaters(row_predicate_updater_functions, [](const auto& f, auto const * const RE_type){
 				return [f](SST& sst) -> void{
 					using Row_Extension = decay_t<decltype(*RE_type)>;
 					f(sst.table[sst.get_local_index()],
@@ -226,8 +225,8 @@ class SST {
 	SST(const vector<int> &_members, int _node_rank) :
 	SST(_members, _node_rank,std::pair<std::tuple<>, std::vector<row_predicate_updater_t> >{}) {}
 
-	template<NameEnum Name, typename ExtensionList, typename... RestFunctions>
-	SST(const vector<int> &_members, int _node_rank, const PredicateBuilder<Row,ExtensionList,NameEnum,Name> &pb, RestFunctions... named_funs) :
+	template<typename ExtensionList, typename... RestFunctions>
+	SST(const vector<int> &_members, int _node_rank, const PredicateBuilder<Row,ExtensionList> &pb, RestFunctions... named_funs) :
 		SST(_members, _node_rank,constructor_helper<0>(pb,named_funs...)) {}
 	
 	template<NameEnum Name, typename NamedFunctionRet, typename... RestFunctions>
