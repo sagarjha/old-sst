@@ -126,7 +126,11 @@ namespace sst {
 
 	namespace predicate_builder {
 
-		//F is a function of Row -> bool.  This will deduce that.
+		/**
+		 * Converts the argument f to a row_predicate.
+		 * f *must* be convertible to a function-pointer.
+		 */
+		//F is a function of Row -> T, for any T.  This will deduce that.
 		template<typename F>
 		auto as_row_pred(const F &f){
 			using namespace util;
@@ -134,7 +138,7 @@ namespace sst {
 			using undecayed_row = typename function_traits<F2>::template arg<0>::type;
 			using Row = std::decay_t<undecayed_row>;
 			using Entry = std::result_of_t<F(undecayed_row)>;
-			auto pred_f = [f](const volatile Row &r, const volatile auto&){
+			auto pred_f = [f = convert_fp(f)](const volatile Row &r, const volatile auto&){
 				return f(r);};
 			using pred_builder = PredicateBuilder<Row,TypeList<NamelessPredicateMetadata<Entry,-1,void, decltype(pred_f)> > >;
 			return pred_builder{pred_f,pred_f};
@@ -147,28 +151,35 @@ namespace sst {
 		auto name_predicate(const PredicateBuilder<Row,TypeList<NamelessPredicateMetadata<Ext,-1,Up,Get> > > &pb){
 			using This_list = TypeList< PredicateMetadata<NameEnum,Name,Ext,Up,Get> >;
 			using next_builder = PredicateBuilder<Row, This_list>;
-			return next_builder{pb.curr_pred_raw,pb.curr_pred_raw};
+			static auto ret = next_builder{pb.curr_pred_raw,pb.curr_pred_raw};
+			return ret;
 		}
 		
 		//nobody in this tree has a name yet;
 		//we need to propogate a uniqueness-tag change
 		//down the entire tree!
 		template<typename NameEnum, NameEnum Name, typename Row, typename Ext, typename Up, typename Get, typename hd, typename... tl>
-		auto name_predicate(const PredicateBuilder<Row,TypeList<NamelessPredicateMetadata<Ext,-1,Up,Get>,hd,tl... > > &pb){
+		const auto& name_predicate(const PredicateBuilder<Row,TypeList<NamelessPredicateMetadata<Ext,-1,Up,Get>,hd,tl... > > &pb){
 			constexpr int unique = static_cast<int>(Name);
 			auto new_prev = change_uniqueness<unique>(pb.prev_preds);
 			using This_list = typename decltype(new_prev)::template append <PredicateMetadata<NameEnum,Name,Ext,Up,Get> >;
 			using next_builder = PredicateBuilder<Row, This_list>;
-			return next_builder{new_prev,pb.updater_function_raw,pb.curr_pred_raw};
+			static auto ret = next_builder{new_prev,pb.updater_function_raw,pb.curr_pred_raw};
+			return ret;
 		}
 
 		//something else in here has been named, so we can just name this PB and need not touch previous ones
 		template<typename NameEnum, NameEnum Name, typename Row, typename Ext, typename Up, typename Get, int unique, typename... tl>
-		auto name_predicate(const PredicateBuilder<Row,TypeList<NamelessPredicateMetadata<Ext,unique,Up,Get>,tl... > > &pb){
+		const auto& name_predicate(const PredicateBuilder<Row,TypeList<NamelessPredicateMetadata<Ext,unique,Up,Get>,tl... > > &pb){
 			static_assert(unique >= 0, "Internal error: overload resolution fails");
 			using next_builder = PredicateBuilder<Row, TypeList<PredicateMetadata<NameEnum,Name,Ext,Up,Get>,tl...> >;
-			return next_builder{pb.prev_preds,pb.updater_function_raw,pb.curr_pred_raw};
+			static auto ret = next_builder{pb.prev_preds,pb.updater_function_raw,pb.curr_pred_raw};
+			return ret;
 		}
+
+		template<typename T>
+		using rowpred_template_arg_t = std::decay_t<T>;
+#define rowpred_template_arg(x...) rowpred_template_arg_t<decltype(x)>
 
 		
 		template<typename Row, typename hd, typename... tl>

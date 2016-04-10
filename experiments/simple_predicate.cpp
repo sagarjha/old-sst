@@ -52,11 +52,17 @@ int main () {
   // create a new shared state table with all the members
   enum class Name {name, newname};
   using namespace predicate_builder;
+  
   auto second_pred_pre = as_row_pred([](volatile const SimpleRow&) -> int {return 7;});
   auto second_pred = name_predicate<Name,Name::newname>(Min(second_pred_pre));
+  
   auto test_pred_pre = as_row_pred([](volatile const SimpleRow&) -> bool {return true;});
   auto test_pred = name_predicate<Name,Name::name>(E(E(E(E(test_pred_pre)))));
-  using this_SST = SST<SimpleRow, Mode::Writes, Name, NamedRowPredicates<decltype(test_pred),decltype(second_pred)> >;
+  
+  using PredicateTemplateArgs =
+	  NamedRowPredicates<rowpred_template_arg(test_pred),
+						 rowpred_template_arg(second_pred)>;
+  using this_SST = SST<SimpleRow, Mode::Writes, Name, PredicateTemplateArgs>;
   this_SST *sst = new this_SST (members, node_rank,test_pred,second_pred);
   const int local = sst->get_local_index();
   sst->call_named_predicate<Name::name>(local);
