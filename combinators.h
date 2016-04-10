@@ -53,6 +53,31 @@ namespace sst {
 		using ExtensionType = Ext_t;
 	};
 
+	template<typename NameEnum, typename NameEnum2, NameEnum2 Name, typename Ext_t>
+	struct NameEnumMatches_str<NameEnum, TypeList<PredicateMetadata<NameEnum2, Name, Ext_t> > >
+		: std::integral_constant<bool,
+								 std::is_same<NameEnum, NameEnum2>::value>{};
+	
+	template<typename NameEnum, int unique, typename Ext_t>
+	struct NameEnumMatches_str<NameEnum, TypeList<NamelessPredicateMetadata<Ext_t,unique> > >
+		: std::true_type {
+		static_assert(unique >= 0; "Error: this query should be performed only on named RowPredicates. This does not have a name yet.");
+	};
+	
+	template<typename NameEnum, typename NameEnum2, NameEnum2 Name, typename Ext_t, typename... tl>
+	struct NameEnumMatches_str<NameEnum, TypeList<PredicateMetadata<NameEnum2, Name, Ext_t>,tl... > >
+		: std::integral_constant<bool,
+								 NameEnumMatches_str<NameEnum,TypeList<tl...> >::value && 
+								 std::is_same<NameEnum, NameEnum2>::value>{};
+	
+	template<typename NameEnum, int unique, typename Ext_t, typename... tl>
+	struct NameEnumMatches_str<NameEnum, TypeList<NamelessPredicateMetadata<Ext_t,unique>,tl... > >
+		: std::integral_constant<bool,
+								 NameEnumMatches_str<NameEnum,TypeList<tl...> >::value>{};
+
+	template<typename NameEnum, typename List>
+	using NameEnumMatches = typename NameEnumMatches_str<NameEnum,List>::type;
+
 	template<typename>
 	struct choose_uniqueness_tag_str{
 		using type = std::integral_constant<int,-1>;
@@ -81,6 +106,7 @@ namespace sst {
 		using append = typename ExtensionList::template append<T>;
 
 		using hd = typename ExtensionList::hd;
+		using is_named = std::integral_constant<bool, (choose_uniqueness_tag<hd>::value >= 0)>;
 		using row_entry = typename hd::ExtensionType;
 		using tl = typename ExtensionList::tl;
 		
@@ -99,11 +125,38 @@ namespace sst {
 						 std::conditional_t<hd::has_name::value,std::tuple<std::function<row_entry (T)> >, std::tuple<> >
 						 >(),
 						 std::declval<typename PredicateBuilder<Row,tl>::template Getters<T> >()))>;
+
+		using num_getters = typename std::tuple_size<Getters<int> >::type;
+
+		template<typename NameEnum>
+		using name_enum_matches = NameEnumMatches<NameEnum, ExtensionList>;
 			
 		const updater_function_t updater_function;
 
 		const PredicateBuilder<Row,tl> prev_preds;
 		const std::function<row_entry (volatile const Row&, volatile const Row_Extension&)> curr_pred;
+
+/*
+		auto curr_pred = pb.curr_pred;
+		using Getter_t = std::decay_t<std::result_of_t<decltype(curr_pred)(volatile const InternalRow&, volatile const InternalRow&, int)> >;
+		std::function<Getter_t (volatile const InternalRow&, int pre_num)> getter = [curr_pred](volatile const InternalRow& row, int pre_num){
+			return curr_pred(row,row,pre_num);
+		};
+ */
+		
+		template<typename T>
+		std::enable_if_t<hd::has_name::value, Getters<T> > wrap_getters() const {
+			std::function<row_entry (volatile const T&)> f
+			{[curr_pred = this->curr_pred](volatile const T& t){
+					return curr_pred(t,t);
+				}};
+			return std::tuple_cat(std::make_tuple(f),prev_preds.wrap_getters());
+		}
+
+		template<typename T>
+		std::enable_if_t<!hd::has_name::value, Getters<T> > wrap_getters() const {
+			return prev_preds.wrap_getters();
+		}
 
 		PredicateBuilder(const PredicateBuilder<Row,tl> &prev, const updater_function_t &f, const decltype(curr_pred) curr_pred):
 			updater_function(f),prev_preds(prev),curr_pred(curr_pred){}

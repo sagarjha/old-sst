@@ -51,15 +51,16 @@ int main () {
   
   // create a new shared state table with all the members
   enum class Name {name, newname};
-  auto test_pred_pre = as_row_pred(Name::name, [](volatile const SimpleRow&) -> bool {return true;});
+  auto test_pred_pre = as_row_pred([](volatile const SimpleRow&) -> bool {return true;});
   using namespace predicate_builder;
-  auto test_pred = E(E(E(E(test_pred_pre))));
-  auto second_pred_pre = as_row_pred(Name::newname, [](volatile const SimpleRow&) -> int {return 7;});
-  auto second_pred = Min(second_pred_pre);
+  auto test_pred = name_predicate<Name,Name::name>(E(E(E(E(test_pred_pre)))));
+  auto second_pred_pre = as_row_pred([](volatile const SimpleRow&) -> int {return 7;});
+  auto second_pred = name_predicate<Name,Name::newname>(Min(second_pred_pre));
   using this_SST = SST<SimpleRow, Mode::Writes, Name, NamedRowPredicates<decltype(test_pred),decltype(second_pred)> >;
   this_SST *sst = new this_SST (members, node_rank,test_pred,second_pred);
   const int local = sst->get_local_index();
   sst->call_named_predicate<Name::name>(local);
+  sst->call_named_predicate<Name::newname>(local);
 
   // there are only 2 nodes; r_index is the index of the remote node
   int r_index = num_nodes-node_rank-1;

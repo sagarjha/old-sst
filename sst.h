@@ -176,28 +176,28 @@ class SST {
 
 	/** Helper function for the constructor that recursively unpacks Named RowPredicate template parameters. */
 
-	template<int index, NameEnum Name, typename ExtensionList, typename... RestFunctions>
-	auto constructor_helper(const PredicateBuilder<Row,ExtensionList,NameEnum,Name> &pb, const RestFunctions&... rest) const {
+	template<int index, typename ExtensionList, typename... RestFunctions>
+	auto constructor_helper(const PredicateBuilder<Row,ExtensionList> &pb, const RestFunctions&... rest) const {
 		using namespace std;
 		using namespace util;
+		static_assert(PredicateBuilder<Row,ExtensionList>::is_named::value,
+					  "Error: cannot build SST with unnamed predicate");
+		static_assert(PredicateBuilder<Row,ExtensionList>::name_enum_matches<NameEnum>::value,
+					  "Error: this predicate contains names from a different NameEnum!");
 		static_assert(static_cast<int>(Name) == index, "Error: non-enum name, or name used out-of-order.");
-		typename std::decay_t<decltype(pb)>::row_extension_ptrs_t Row_Extension_types;
-		auto rec_call_res = constructor_helper<index + 1>(rest...);
+
+		constexpr auto num_getters = PredicateBuilder<Row,ExtensionList>::num_getters::value;
+		auto rec_call_res = constructor_helper<index + num_getters>(rest...);
+		
 		auto &row_predicate_updater_functions = rec_call_res.second;
-		for_each([&](const auto& f, auto const * const RE_type){
-				row_predicate_updater_functions.push_back([f](SST& sst) -> void{
-						using Row_Extension = decay_t<decltype(*RE_type)>;
-						f(sst.table[sst.get_local_index()],
-						  [&](int row){return ref_pair<volatile Row,volatile Row_Extension>{sst.table[row],sst.table[row]}; },
-						  sst.get_num_rows());
-						});
-			}, pb.updater_functions, Row_Extension_types);
-		auto curr_pred = pb.curr_pred;
-		using Getter_t = std::decay_t<std::result_of_t<decltype(curr_pred)(volatile const InternalRow&, volatile const InternalRow&, int)> >;
-		std::function<Getter_t (volatile const InternalRow&, int pre_num)> getter = [curr_pred](volatile const InternalRow& row, int pre_num){
-			return curr_pred(row,row,pre_num);
-		};
-		return make_pair(tuple_cat(make_tuple(getter), rec_call_res.first),row_predicate_updater_functions);
+		map_updaters(row_predicate_updater_functions, [](const auto& f, auto const * const RE_type){
+				return [f](SST& sst) -> void{
+					using Row_Extension = decay_t<decltype(*RE_type)>;
+					f(sst.table[sst.get_local_index()],
+					  [&](int row){return ref_pair<volatile Row,volatile Row_Extension>{sst.table[row],sst.table[row]}; },
+					  sst.get_num_rows());
+				};},pb);
+		return make_pair(tuple_cat(pb.template wrap_getters<InternalRow>(), rec_call_res.first),row_predicate_updater_functions);
 	}
 
         //Functions for background threads to run
@@ -270,14 +270,15 @@ class SST {
 	 * *not* named functions.
 	 */
 	template<NameEnum name>
-	bool call_named_predicate(volatile const InternalRow& ir, int backtrack = 0) const{
-		assert(static_cast<int>(name) >= NamedFunctionTypePack::size::value);
-		return std::get<static_cast<int>(name)>(named_functions)(ir,backtrack);
+	auto call_named_predicate(volatile const InternalRow& ir) const{
+		static_assert(static_cast<int>(name) >= NamedFunctionTypePack::size::value,
+					  "Error: NamedFunctions are deprecated; no mechanism for retrieval exists.");
+		return std::get<static_cast<int>(name)>(named_functions)(ir);
 	}
 	
 	template<NameEnum name>
-	bool call_named_predicate(const int row_index, int backtrack = 0) const{
-		return call_named_predicate<name>((*this)[row_index],backtrack);
+	auto call_named_predicate(const int row_index) const{
+		return call_named_predicate<name>((*this)[row_index]);
 	}
 
 	
