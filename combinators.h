@@ -244,35 +244,6 @@ namespace sst {
 			return next_builder{pb,updater_f,getter_f};
 		}
 	}
-
-	//Evolving Predicates (combinator-free)
-
-	template<typename NameEnum, NameEnum Name, typename F>
-	struct Evolving_function {
-		//types 
-		using Fun = std::decay_t<decltype(convert(f))>;
-		using SST = std::decay_t<typename function_traits<Fun>::template arg<0>::type>;
-		static_assert(function_traits<Fun>::arity == 1,"Error: single-argument predicate only!");
-		using Evolve_t = std::function<Fun (const SST&, int)>;
-
-		//members
-		const Fun f;
-		const Evolve_t evolve;		
-	};
-	
-	template<typename F>
-	using Evolve_t = typename Evolving_function::Evolve_t;
-	
-	/**
-	 * Required types:
-	 * F : const SST& -> T
-	 * Evolve : const SST&, int -> F
-	 * where T is some arbitrary type
-	 */
-	template<typename NameEnum, NameEnum Name, typename F, typename Evolve>
-	Evolving_function<NameEnum, Name, F> evolve(const F& f, const Evolve_t<F> &evolve){
-		return Evolving_function<NameEnum, Name,F>{f,evolve};
-	}
 }
 
 

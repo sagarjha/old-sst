@@ -241,6 +241,25 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
 			f(*this);
 		}
 
+		//evolving predicates trigger, then evolve
+		for (std::size_t i = 0; i < predicates.evolving_preds.size(); ++i){
+			if (predicates.evolving_preds.at(i)){
+				if (predicates.evolving_preds.at(i)->first(*this)) {
+					//take predicate out of list
+					auto pred_pair = std::move(predicates.evolving_preds[i]);
+					//evaluate triggers on predicate
+					for (auto &trig : predicates.evolving_triggers.at(i)){
+						trig(*this,pred_pair->second);
+					}
+					//evolve predicate
+					predicates.evolving_preds[i].reset(
+						new std::pair<function<bool(const SST&)>,int>{
+							(*predicates.evolvers.at(i))(*this,pred_pair->second)
+								,pred_pair->second + 1});
+				}
+			}
+		}
+
         // one time predicates need to be evaluated only until they become true
         auto pred_it = predicates.one_time_predicates.begin();
         while (pred_it != predicates.one_time_predicates.end()) {

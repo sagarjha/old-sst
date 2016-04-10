@@ -221,23 +221,29 @@ class SST {
         /** Does a TCP sync with each member of the SST. */
         void sync_with_members() const;
 
+        class Predicates;
+        /** Predicate management object for this SST. */
+        Predicates& predicates;
+	friend class Predicates;
+	
 	/** 
 	 * Retrieve a previously-stored named predicate and call it. 
 	 */
 	template<NameEnum name>
 	auto call_named_predicate(volatile const InternalRow& ir) const{
-		return std::get<static_cast<int>(name)>(named_functions)(ir);
+		constexpr int index = static_cast<int>(name);
+		constexpr int max = std::tuple_size<named_functions_t>::value;
+		static_assert(index < max,"Error: this name was not used to name a RowPredicate");
+		
+		//the modulos here ensure the function type-checks
+		//even when the index is too large. 
+		return std::get<index % max>(named_functions)(ir);
 	}
 	
 	template<NameEnum name>
 	auto call_named_predicate(const int row_index) const{
 		return call_named_predicate<name>((*this)[row_index]);
 	}
-
-	
-        class Predicates;
-        /** Predicate management object for this SST. */
-        Predicates& predicates;
 };
 
 } /* namespace sst */

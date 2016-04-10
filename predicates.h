@@ -48,7 +48,11 @@ class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
 		 * paired with a list of callbacks */
         using pred_list = list<pair<pred, list<trig>>>;
 
+	using evolver = std::function<pred (const SST&, int) >;
+	using evolve_trig = std::function<void (SST&, int)>;
+
     public:
+	
 		/** Predicate list for one-time predicates. */
         pred_list one_time_predicates;
 		/** Predicate list for recurrent predicates */
@@ -58,9 +62,21 @@ class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
         /** Contains one entry for every predicate in `transition_predicates`, in parallel. */
         list<bool> transition_predicate_states;
 
-        /** Inserts a single (predicate, trigger) pair to the appropriate predicate list. */
-        void insert(pred predicate, trig trigger, PredicateType type =
+	std::vector<std::unique_ptr<std::pair<pred, int > > > evolving_preds;
+	
+	std::vector<std::unique_ptr<evolver> > evolvers;
+
+	std::vector<std::list<evolve_trig> > evolving_triggers;
+
+	/** Inserts a single (predicate, trigger) pair to the appropriate predicate list. */
+	void insert(pred predicate, trig trigger, PredicateType type =
                 PredicateType::ONE_TIME);
+
+	/** Inserts a single (name, predicate, evolve) to the appropriate predicate list. */
+	void insert(NameEnum name, pred predicate, evolver evolve, std::list<evolve_trig> triggers);
+
+	void add_triggers(NameEnum name, std::list<evolve_trig> triggers);
+
 };
 
 
@@ -89,6 +105,32 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::insert(pred predicate,
                 pair<pred, list<trig>>(predicate, g_list));
         transition_predicate_states.push_back(false);
     }
+}
+
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+void SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::insert(NameEnum name, pred predicate, evolver evolve, std::list<evolve_trig> triggers) {
+	constexpr int min = std::tuple_size<SST::named_functions_t>::value;
+	int index = static_cast<int>(name) - min;
+	assert(index >= 0);
+	assert(evolving_preds.size() == evolvers.size());
+	assert(evolving_preds.size() == evolving_triggers.size());
+	if (evolving_preds.size() <= index) {
+		evolving_preds.resize(index+1);
+		evolvers.resize(index+1);
+		evolving_triggers.resize(index+1);
+	}
+	evolvers[index] = std::make_unique<evolver>(evolve);
+	evolving_preds[index] = std::make_unique<std::pair<pred,int> >({predicate,0});
+	evolving_triggers[index] = triggers;
+}
+
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+void SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::add_triggers(NameEnum name, std::list<evolve_trig> triggers) {
+	constexpr int min = std::tuple_size<SST::named_functions_t>::value;
+	int index = static_cast<int>(name) - min;
+	assert(index >= 0);
+	assert(index < evolving_preds.size());
+	evolving_triggers[index].insert(evolving_triggers[index].end(),triggers.begin(),triggers.end());
 }
 
 } /* namespace sst */
