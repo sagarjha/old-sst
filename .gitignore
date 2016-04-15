@@ -4,6 +4,7 @@ Makefile
 cmake_install.cmake
 CMakeFiles/*
 doc/*
+.ycm*
 a.out
 experiments/atomicity_test
 experiments/average_load_pred
