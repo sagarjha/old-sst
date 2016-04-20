@@ -158,6 +158,8 @@ class SST {
 					  [&](int row){return ref_pair<volatile Row,volatile Row_Extension>{sst.table[row],sst.table[row]}; },
 					  sst.get_num_rows());
 				};},pb);
+
+
 		return make_pair(tuple_cat(pb.template wrap_getters<InternalRow>(), rec_call_res.first),row_predicate_updater_functions);
 	}
 
@@ -182,12 +184,12 @@ class SST {
          * this code is running.
          */
 
-	SST(const vector<int> &_members, int _node_rank) :
-	SST(_members, _node_rank,std::pair<std::tuple<>, std::vector<row_predicate_updater_t> >{}) {}
+        SST(const vector<int> &_members, int _node_rank) :
+            SST(_members, _node_rank,std::pair<std::tuple<>, std::vector<row_predicate_updater_t> >{}) {}
 
-	template<typename ExtensionList, typename... RestFunctions>
-	SST(const vector<int> &_members, int _node_rank, const PredicateBuilder<Row,ExtensionList> &pb, RestFunctions... named_funs) :
-		SST(_members, _node_rank,constructor_helper<0>(pb,named_funs...)) {}
+        template<typename ExtensionList, typename... RestFunctions>
+        SST(const vector<int> &_members, int _node_rank, const PredicateBuilder<Row,ExtensionList> &pb, RestFunctions... named_funs) :
+        SST(_members, _node_rank,constructor_helper<0>(pb,named_funs...)) {}
 	
 
         /**
@@ -199,7 +201,7 @@ class SST {
          * @param _node_rank The node rank of the local node, i.e. the one on which
          * this code is running.
          */
-	SST(const vector<int> &_members, int _node_rank, std::pair<decltype(named_functions),std::vector<row_predicate_updater_t> >);
+        SST(const vector<int> &_members, int _node_rank, std::pair<decltype(named_functions),std::vector<row_predicate_updater_t> >);
         virtual ~SST();
         /** Accesses a local or remote row. */
         volatile InternalRow & get(int index);
@@ -224,26 +226,26 @@ class SST {
         class Predicates;
         /** Predicate management object for this SST. */
         Predicates& predicates;
-	friend class Predicates;
+        friend class Predicates;
 	
-	/** 
-	 * Retrieve a previously-stored named predicate and call it. 
-	 */
-	template<NameEnum name>
-	auto call_named_predicate(volatile const InternalRow& ir) const{
-		constexpr int index = static_cast<int>(name);
-		constexpr int max = std::tuple_size<named_functions_t>::value;
-		static_assert(index < max,"Error: this name was not used to name a RowPredicate");
-		
-		//the modulos here ensure the function type-checks
-		//even when the index is too large. 
-		return std::get<index % max>(named_functions)(ir);
-	}
-	
-	template<NameEnum name>
-	auto call_named_predicate(const int row_index) const{
-		return call_named_predicate<name>((*this)[row_index]);
-	}
+        /**
+         * Retrieve a previously-stored named predicate and call it.
+         */
+        template<NameEnum name>
+        auto call_named_predicate(volatile const InternalRow& ir) const {
+            constexpr int index = static_cast<int>(name);
+            constexpr int max = std::tuple_size<named_functions_t>::value;
+            static_assert(index < max,"Error: this name was not used to name a RowPredicate");
+
+            //the modulos here ensure the function type-checks
+            //even when the index is too large.
+            return std::get<index % max>(named_functions)(ir);
+        }
+
+        template<NameEnum name>
+        auto call_named_predicate(const int row_index) const {
+            return call_named_predicate<name>((*this)[row_index]);
+        }
 };
 
 } /* namespace sst */

@@ -40,16 +40,16 @@ class SST;
  */
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
-		/** Type definition for a predicate: a boolean function that takes an SST as input. */
+        /** Type definition for a predicate: a boolean function that takes an SST as input. */
         using pred = function<bool(const SST&)>;
-		/** Type definition for a trigger: a void function that takes an SST as input. */
+        /** Type definition for a trigger: a void function that takes an SST as input. */
         using trig = function<void(SST&)>;
         /** Type definition for a list of predicates, where each predicate is 
-		 * paired with a list of callbacks */
+         * paired with a list of callbacks */
         using pred_list = list<pair<pred, list<trig>>>;
 
-	using evolver = std::function<pred (const SST&, int) >;
-	using evolve_trig = std::function<void (SST&, int)>;
+        using evolver = std::function<pred (const SST&, int) >;
+        using evolve_trig = std::function<void (SST&, int)>;
 
     public:
 	
@@ -62,20 +62,19 @@ class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
         /** Contains one entry for every predicate in `transition_predicates`, in parallel. */
         list<bool> transition_predicate_states;
 
-	std::vector<std::unique_ptr<std::pair<pred, int > > > evolving_preds;
-	
-	std::vector<std::unique_ptr<evolver> > evolvers;
+        std::vector<std::unique_ptr<std::pair<pred, int> > > evolving_preds;
 
-	std::vector<std::list<evolve_trig> > evolving_triggers;
+        std::vector<std::unique_ptr<evolver> > evolvers;
 
-	/** Inserts a single (predicate, trigger) pair to the appropriate predicate list. */
-	void insert(pred predicate, trig trigger, PredicateType type =
-                PredicateType::ONE_TIME);
+        std::vector<std::list<evolve_trig> > evolving_triggers;
 
-	/** Inserts a single (name, predicate, evolve) to the appropriate predicate list. */
-	void insert(NameEnum name, pred predicate, evolver evolve, std::list<evolve_trig> triggers);
+        /** Inserts a single (predicate, trigger) pair to the appropriate predicate list. */
+        void insert(pred predicate, trig trigger, PredicateType type = PredicateType::ONE_TIME);
 
-	void add_triggers(NameEnum name, std::list<evolve_trig> triggers);
+        /** Inserts a single (name, predicate, evolve) to the appropriate predicate list. */
+        void insert(NameEnum name, pred predicate, evolver evolve, std::list<evolve_trig> triggers);
+
+        void add_triggers(NameEnum name, std::list<evolve_trig> triggers);
 
 };
 
