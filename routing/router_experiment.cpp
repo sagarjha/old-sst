@@ -10,6 +10,7 @@
 #include <tuple>
 #include <unordered_set>
 #include <utility>
+#include <map>
 #include <vector>
 
 #include "../experiments/statistics.h"
@@ -32,7 +33,7 @@ using std::unordered_set;
 using std::pair;
 using std::make_pair;
 using std::tie;
-using std::string;
+using std::map;
 using std::unique_ptr;
 
 using sst::SST;
@@ -64,7 +65,7 @@ int main (int argc, char** argv) {
   node_config_stream >> num_nodes >> this_node_rank;
 
   // input the ip addresses
-  vector <string> ip_addrs (num_nodes);
+  map<uint32_t, string> ip_addrs;
   for (int i = 0; i < num_nodes; ++i) {
     node_config_stream >> ip_addrs[i];
   }
@@ -75,7 +76,7 @@ int main (int argc, char** argv) {
 
 
   // initialize tcp connections
-  sst::tcp::tcp_initialize(num_nodes, this_node_rank, ip_addrs);
+  sst::tcp::tcp_initialize(this_node_rank, ip_addrs);
 
   // initialize the rdma resources
   sst::verbs_initialize();

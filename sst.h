@@ -11,6 +11,8 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <thread>
+#include <atomic>
 
 #include "util.h"
 #include "verbs.h"
@@ -126,8 +128,10 @@ class SST {
 	
         /** RDMA resources vector, one for each member. */
         vector<unique_ptr<resources>> res_vec;
+        /** Holds references to background threads, so that we can shut them down during destruction. */
+        vector<thread> background_threads;
         /** A flag to signal background threads to shut down; set to true during destructor calls. */
-        bool thread_shutdown;
+        std::atomic<bool> thread_shutdown;
 
         /** Base case for the recursive constructor_helper with no template parameters. */
         template<int index>

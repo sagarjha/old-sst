@@ -99,7 +99,7 @@ namespace sst {
         std::enable_if_t<Metadata::has_name::value, Getters<const volatile T&> > wrap_getters() const {
 		    assert(&curr_pred == &this->curr_pred);
             std::function<row_entry (volatile const T&)> f
-            {[curr_pred](volatile const T& t){
+            {[&](volatile const T& t){
                     return curr_pred(t,t);
                 }};
             return std::make_tuple(f);
@@ -221,7 +221,7 @@ namespace sst {
 		std::enable_if_t<hd::has_name::value, Getters<const volatile T&> > wrap_getters() const {
 		    assert(&curr_pred == &this->curr_pred);
 			std::function<row_entry (volatile const T&)> f
-			{[curr_pred](volatile const T& t){
+			{[&](volatile const T& t){
 					return curr_pred(t,t);
 				}};
 			return std::tuple_cat(std::make_tuple(f),prev_preds.template wrap_getters<T>());

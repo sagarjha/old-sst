@@ -21,8 +21,7 @@ SST<Row, ImplMode, NameEnum, RowExtras>::SST(
 	std::pair<decltype(named_functions),std::vector<row_predicate_updater_t> > row_preds) :
 	named_functions(row_preds.first), members(_members.size()), num_members(_members.size()),
 	table(new InternalRow[_members.size()]),row_predicate_updater_functions(row_preds.second), res_vec(num_members),
-                thread_shutdown(false),
-					predicates(*(new Predicates())){
+	background_threads(), thread_shutdown(false), predicates(*(new Predicates())){
 
             // copy members and figure out the member_index
             for (int i = 0; i < num_members; ++i) {
@@ -55,8 +54,8 @@ SST<Row, ImplMode, NameEnum, RowExtras>::SST(
                 // create the reader and the detector thread
                 thread reader(&SST::read, this);
                 thread detector(&SST::detect, this);
-                reader.detach();
-                detector.detach();
+                background_threads.push_back(std::move(reader));
+                background_threads.push_back(std::move(detector));
 
                 cout << "Initialized SST and Started Threads" << endl;
             } else {
@@ -74,20 +73,23 @@ SST<Row, ImplMode, NameEnum, RowExtras>::SST(
                 }
 
                 thread detector(&SST::detect, this);
-                detector.detach();
+                background_threads.push_back(std::move(detector));
 
                 cout << "Initialized SST and Started Threads" << endl;
             }
         }
 
 /**
- * Destructor for the state table; sets thread_shutdown to true so that
- * detached background threads exit cleanly.
+ * Destructor for the state table; sets thread_shutdown to true and waits for
+ * background threads to exit cleanly.
  */
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 SST<Row, ImplMode, NameEnum, RowExtras>::~SST() {
     thread_shutdown = true;
     delete &predicates;
+    for(auto& thread : background_threads) {
+        thread.join();
+    }
 }
 
 /** 
@@ -165,7 +167,7 @@ int SST<Row, ImplMode, NameEnum, RowExtras>::get_local_index() const {
  */
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 std::unique_ptr<typename SST<Row, ImplMode, NameEnum, RowExtras>::SST_Snapshot> SST<Row, ImplMode, NameEnum, RowExtras>::get_snapshot() const {
-        return std::make_unique<SST_Snapshot>(table, num_members, named_functions);
+        return std::make_unique<SST_Snapshot>(table, num_members);
 }
 
 /**
