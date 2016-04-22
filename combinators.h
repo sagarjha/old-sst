@@ -98,9 +98,13 @@ namespace sst {
 		template<typename T /*T extends Row & Row_Extension*/>
         std::enable_if_t<Metadata::has_name::value, Getters<const volatile T&> > wrap_getters() const {
 		    assert(&curr_pred == &this->curr_pred);
+		    //WARNING: This currently makes an extra copy of curr_pred to capture it
+		    //TODO: Before running any tests, replace with the new C++14 feature:
+		    //{[captured_pred = this->curr_pred](volatile const T& t) { ...
+		    auto captured_pred = this->curr_pred;
             std::function<row_entry (volatile const T&)> f
-            {[&](volatile const T& t){
-                    return curr_pred(t,t);
+            {[captured_pred](volatile const T& t){
+                    return captured_pred(t,t);
                 }};
             return std::make_tuple(f);
         }
@@ -220,9 +224,13 @@ namespace sst {
 		template<typename T>
 		std::enable_if_t<hd::has_name::value, Getters<const volatile T&> > wrap_getters() const {
 		    assert(&curr_pred == &this->curr_pred);
+		    //WARNING: This currently makes an extra copy of curr_pred to capture it
+            //TODO: Before running any tests, replace with the new C++14 feature:
+            //{[captured_pred = this->curr_pred](volatile const T& t) { ...
+		    auto captured_pred = curr_pred;
 			std::function<row_entry (volatile const T&)> f
-			{[&](volatile const T& t){
-					return curr_pred(t,t);
+			{[captured_pred](volatile const T& t){
+					return captured_pred(t,t);
 				}};
 			return std::tuple_cat(std::make_tuple(f),prev_preds.template wrap_getters<T>());
 		}
