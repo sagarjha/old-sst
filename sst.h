@@ -67,24 +67,23 @@ template<class Row, Mode ImplMode = Mode::Writes,
 		 typename RowExtras = NamedRowPredicates<> >
 class SST {
 
-	using NamedRowPredicatesTypePack = typename RowExtras::NamedRowPredicatesTypePack;
-	
-	//Row struct must be POD. In addition, it should not contain any pointer types
-	static_assert(std::is_pod<Row>::value, "Error! Row type must be POD.");
-	//static_assert(forall_type_list<this should be is_base with the Row!, NamedRowPredicatesTypePack>(),"Error: RowPredicates built on wrong row!");
-	
-	
-    private:
-	struct InternalRow : public Row, public util::extend_tuple_members<typename NamedRowPredicatesTypePack::row_types> {
-		
-	};
+        using NamedRowPredicatesTypePack = typename RowExtras::NamedRowPredicatesTypePack;
 
-	using named_functions_t = typename NamedRowPredicatesTypePack::template Getters<const volatile InternalRow&>;
-		
-		//			   std::declval<util::n_copies<NamedRowPredicatesTypePack::size::value,
-		//			   std::function<bool (volatile const InternalRow&, int)> > >()))>;
-	/** List of functions we have registered to use knowledge operators on */
-	named_functions_t named_functions;
+        //Row struct must be POD. In addition, it should not contain any pointer types
+        static_assert(std::is_pod<Row>::value, "Error! Row type must be POD.");
+        //static_assert(forall_type_list<this should be is_base with the Row!, NamedRowPredicatesTypePack>(),"Error: RowPredicates built on wrong row!");
+
+    private:
+        struct InternalRow: public Row, public util::extend_tuple_members<typename NamedRowPredicatesTypePack::row_types> {
+
+        };
+
+        using named_functions_t = typename NamedRowPredicatesTypePack::template Getters<const volatile InternalRow&>;
+
+        //			   std::declval<util::n_copies<NamedRowPredicatesTypePack::size::value,
+        //			   std::function<bool (volatile const InternalRow&, int)> > >()))>;
+        /** List of functions we have registered to use knowledge operators on */
+        named_functions_t named_functions;
 
     public:
         /**
@@ -122,10 +121,14 @@ class SST {
         int member_index;
         /** The actual structure containing shared state data. */
         unique_ptr<volatile InternalRow[]> table;
-	/** List of functions needed to update row predicates */
-	using row_predicate_updater_t = std::function<void (SST&)>;
-	const std::vector<row_predicate_updater_t> row_predicate_updater_functions; //should be of size NamedPredicatesTypePack::num_updater_functions:::value
-	
+        /** A parallel array tracking whether the row has been marked frozen. */
+        std::vector<bool> row_is_frozen;
+        /** The number of rows that have been frozen. */
+        int num_frozen{0};
+        /** List of functions needed to update row predicates */
+        using row_predicate_updater_t = std::function<void (SST&)>;
+        const std::vector<row_predicate_updater_t> row_predicate_updater_functions; //should be of size NamedPredicatesTypePack::num_updater_functions:::value
+
         /** RDMA resources vector, one for each member. */
         vector<unique_ptr<resources>> res_vec;
         /** Holds references to background threads, so that we can shut them down during destruction. */
@@ -136,36 +139,35 @@ class SST {
         /** Base case for the recursive constructor_helper with no template parameters. */
         template<int index>
         auto constructor_helper() const {
-			using namespace std;
-            return make_pair(tuple<>{},vector<row_predicate_updater_t>{});
+            using namespace std;
+            return make_pair(tuple<> { }, vector<row_predicate_updater_t> { });
         }
 
-	/** Helper function for the constructor that recursively unpacks Named RowPredicate template parameters. */
+        /** Helper function for the constructor that recursively unpacks Named RowPredicate template parameters. */
 
-	template<int index, typename ExtensionList, typename... RestFunctions>
-	auto constructor_helper(const PredicateBuilder<Row,ExtensionList> &pb, const RestFunctions&... rest) const {
-		using namespace std;
-		using namespace util;
-		static_assert(PredicateBuilder<Row,ExtensionList>::is_named::value,
-					  "Error: cannot build SST with unnamed predicate");
-		static_assert(PredicateBuilder<Row,ExtensionList>::template name_enum_matches<NameEnum>::value,
-					  "Error: this predicate contains names from a different NameEnum!");
+        template<int index, typename ExtensionList, typename ... RestFunctions>
+        auto constructor_helper(const PredicateBuilder<Row, ExtensionList> &pb, const RestFunctions&... rest) const {
+            using namespace std;
+            using namespace util;
+            static_assert(PredicateBuilder<Row,ExtensionList>::is_named::value,
+                    "Error: cannot build SST with unnamed predicate");
+            static_assert(PredicateBuilder<Row,ExtensionList>::template name_enum_matches<NameEnum>::value,
+                    "Error: this predicate contains names from a different NameEnum!");
 
-		constexpr auto num_getters = PredicateBuilder<Row,ExtensionList>::num_getters::value;
-		auto rec_call_res = constructor_helper<index + num_getters>(rest...);
-		
-		std::vector<row_predicate_updater_t> &row_predicate_updater_functions = rec_call_res.second;
-		predicate_builder::map_updaters(row_predicate_updater_functions, [](const auto& f, auto const * const RE_type){
-				return [f](SST& sst) -> void{
-					using Row_Extension = decay_t<decltype(*RE_type)>;
-					f(sst.table[sst.get_local_index()],
-					  [&](int row){return ref_pair<volatile Row,volatile Row_Extension>{sst.table[row],sst.table[row]}; },
-					  sst.get_num_rows());
-				};},pb);
+            constexpr auto num_getters = PredicateBuilder<Row, ExtensionList>::num_getters::value;
+            auto rec_call_res = constructor_helper<index + num_getters>(rest...);
 
+            std::vector<row_predicate_updater_t> &row_predicate_updater_functions = rec_call_res.second;
+            predicate_builder::map_updaters(row_predicate_updater_functions, [](const auto& f, auto const * const RE_type) {
+                return [f](SST& sst) -> void {
+                    using Row_Extension = decay_t<decltype(*RE_type)>;
+                    f(sst.table[sst.get_local_index()],
+                            [&](int row) {return ref_pair<volatile Row,volatile Row_Extension> {sst.table[row],sst.table[row]};},
+                            sst.get_num_rows());
+                };}, pb);
 
-		return make_pair(tuple_cat(pb.template wrap_getters<InternalRow>(), rec_call_res.first),row_predicate_updater_functions);
-	}
+            return make_pair(tuple_cat(pb.template wrap_getters<InternalRow>(), rec_call_res.first), row_predicate_updater_functions);
+        }
 
         //Functions for background threads to run
         /** Reads all the remote rows once by RDMA, if this SST is in Reads mode. */
@@ -174,7 +176,6 @@ class SST {
         void read();
         /** Continuously evaluates predicates to detect when they become true. */
         void detect();
-
 
     public:
         /**
@@ -189,12 +190,13 @@ class SST {
          */
 
         SST(const vector<int> &_members, int _node_rank) :
-            SST(_members, _node_rank,std::pair<std::tuple<>, std::vector<row_predicate_updater_t> >{}) {}
+                SST(_members, _node_rank, std::pair<std::tuple<>, std::vector<row_predicate_updater_t> > { }) {
+        }
 
-        template<typename ExtensionList, typename... RestFunctions>
-        SST(const vector<int> &_members, int _node_rank, const PredicateBuilder<Row,ExtensionList> &pb, RestFunctions... named_funs) :
-        SST(_members, _node_rank,constructor_helper<0>(pb,named_funs...)) {}
-	
+        template<typename ExtensionList, typename ... RestFunctions>
+        SST(const vector<int> &_members, int _node_rank, const PredicateBuilder<Row, ExtensionList> &pb, RestFunctions ... named_funs) :
+                SST(_members, _node_rank, constructor_helper<0>(pb, named_funs...)) {
+        }
 
         /**
          * Delegate constructor to construct an SST instance without named
@@ -205,7 +207,7 @@ class SST {
          * @param _node_rank The node rank of the local node, i.e. the one on which
          * this code is running.
          */
-        SST(const vector<int> &_members, int _node_rank, std::pair<decltype(named_functions),std::vector<row_predicate_updater_t> >);
+        SST(const vector<int> &_members, int _node_rank, std::pair<decltype(named_functions), std::vector<row_predicate_updater_t> >);
         virtual ~SST();
         /** Accesses a local or remote row. */
         volatile InternalRow & get(int index);
@@ -226,12 +228,14 @@ class SST {
         void put(long long int offset, long long int size);
         /** Does a TCP sync with each member of the SST. */
         void sync_with_members() const;
+        /** Marks a row as frozen, so it will no longer update, and its corresponding node will not receive writes. */
+        void freeze(int index);
 
         class Predicates;
         /** Predicate management object for this SST. */
         Predicates& predicates;
         friend class Predicates;
-	
+
         /**
          * Retrieve a previously-stored named predicate and call it.
          */

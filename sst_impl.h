@@ -20,7 +20,8 @@ SST<Row, ImplMode, NameEnum, RowExtras>::SST(
 	const vector<int> &_members, int _node_rank,
 	std::pair<decltype(named_functions),std::vector<row_predicate_updater_t> > row_preds) :
 	named_functions(row_preds.first), members(_members.size()), num_members(_members.size()),
-	table(new InternalRow[_members.size()]),row_predicate_updater_functions(row_preds.second), res_vec(num_members),
+	table(new InternalRow[_members.size()]), row_is_frozen(_members.size(), false),
+	row_predicate_updater_functions(row_preds.second), res_vec(num_members),
 	background_threads(), thread_shutdown(false), predicates(*(new Predicates())){
 
             // copy members and figure out the member_index
@@ -170,6 +171,13 @@ std::unique_ptr<typename SST<Row, ImplMode, NameEnum, RowExtras>::SST_Snapshot> 
         return std::make_unique<SST_Snapshot>(table, num_members);
 }
 
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+void SST<Row, ImplMode, NameEnum, RowExtras>::freeze(int index) {
+        row_is_frozen[index] = true;
+        num_frozen++;
+        res_vec[index].reset();
+}
+
 /**
  * Exchanges a single byte of data with each member of the SST group over the
  * TCP (not RDMA) connection, in descending order of the members' node ranks.
@@ -196,15 +204,15 @@ template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::refresh_table() {
     if (ImplMode == Mode::Reads) {
         for (int index = 0; index < num_members; ++index) {
-            if (index == member_index) {
-                // don't read own row!
+            // don't read own row or a frozen row
+            if (index == member_index || row_is_frozen[index]) {
                 continue;
             }
             // perform a remote RDMA read on the owner of the row
             res_vec[index]->post_remote_read(sizeof(table[0]));
         }
         // poll for one less than number of rows
-        for (int index = 0; index < num_members - 1; ++index) {
+        for (int index = 0; index < num_members - num_frozen - 1; ++index) {
             // poll for completion
             verbs_poll_completion();
         }
@@ -315,15 +323,15 @@ template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::put() {
     if (ImplMode == Mode::Writes) {
         for (int index = 0; index < num_members; ++index) {
-            if (index == member_index) {
-                // don't write to yourself!
+            // don't write to yourself or a frozen row
+            if (index == member_index || row_is_frozen[index]) {
                 continue;
             }
             // perform a remote RDMA write on the owner of the row
             res_vec[index]->post_remote_write(sizeof(table[0]));
         }
-        // poll for one less than number of rows
-        for (int index = 0; index < num_members - 1; ++index) {
+        // poll for one less than number of active rows
+        for (int index = 0; index < num_members - num_frozen - 1 ; ++index) {
             // poll for completion
             verbs_poll_completion();
         }
@@ -348,15 +356,15 @@ template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::put(long long int offset, long long int size) {
     if (ImplMode == Mode::Writes) {
         for (int index = 0; index < num_members; ++index) {
-            if (index == member_index) {
-                // don't write to yourself!
+            // don't write to yourself or a frozen row
+            if (index == member_index || row_is_frozen[index]) {
                 continue;
             }
             // perform a remote RDMA write on the owner of the row
             res_vec[index]->post_remote_write(offset, size);
         }
-        // poll for one less than number of rows
-        for (int index = 0; index < num_members - 1; ++index) {
+        // poll for one less than number of active rows
+        for (int index = 0; index < num_members - num_frozen - 1 ; ++index) {
             // poll for completion
             verbs_poll_completion();
         }
