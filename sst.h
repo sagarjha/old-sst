@@ -208,6 +208,7 @@ class SST {
          * this code is running.
          */
         SST(const vector<int> &_members, int _node_rank, std::pair<decltype(named_functions), std::vector<row_predicate_updater_t> >);
+        SST(const SST&) = delete;
         virtual ~SST();
         /** Accesses a local or remote row. */
         volatile InternalRow & get(int index);
