@@ -73,11 +73,10 @@ class SST {
         static_assert(std::is_pod<Row>::value, "Error! Row type must be POD.");
         //static_assert(forall_type_list<this should be is_base with the Row!, NamedRowPredicatesTypePack>(),"Error: RowPredicates built on wrong row!");
 
+    public:
+        struct InternalRow: public Row, public util::extend_tuple_members<typename NamedRowPredicatesTypePack::row_types> {};
+
     private:
-        struct InternalRow: public Row, public util::extend_tuple_members<typename NamedRowPredicatesTypePack::row_types> {
-
-        };
-
         using named_functions_t = typename NamedRowPredicatesTypePack::template Getters<const volatile InternalRow&>;
 
         //			   std::declval<util::n_copies<NamedRowPredicatesTypePack::size::value,
