@@ -384,6 +384,7 @@ namespace sst {
 	}
       }
     }
+  }
 
     /**
      * This can be used to write only a single state variable to the remote nodes,
@@ -410,13 +411,34 @@ namespace sst {
 	  // perform a remote RDMA write on the owner of the row
 	  res_vec[index]->post_remote_write(offset, size);
 	}
-	// poll for one less than number of active rows
-	for (int index = 0; index < num_members - num_frozen - 1 ; ++index) {
+	// track which nodes haven't failed yet
+	vector<bool> polled_successfully(num_members, false);
+	// poll for one less than number of rows
+	for (int index = 0; index < num_members - num_frozen - 1; ++index) {
 	  // poll for completion
-	  verbs_poll_completion();
+	  auto p = verbs_poll_completion();
+	  int qp_num = p.first;
+	  int result = p.second;
+	  if (result == 1) {
+	    polled_successfully[qp_num_to_index[qp_num]] = true;
+	  }
+	  else if (result == -1) {
+	    freeze(qp_num_to_index[qp_num]);
+	    return;
+	  }
+	  else if (result == 0) {
+	    // find some node that hasn't been polled yet and report it
+	    for (int index = 0; index < num_members; ++index) {
+	      if (index == member_index || row_is_frozen[index] || polled_successfully[index] == true) {
+		continue;
+	      }
+	      freeze(index);
+	      return;
+	    }
+	  }
 	}
       }
-    }
+    }      
 
     //SST_Snapshot implementation
 
@@ -457,6 +479,6 @@ namespace sst {
       return get(index);
     }
 
-  } /* namespace sst */
+    } /* namespace sst */
 
 #endif /* SST_H */
