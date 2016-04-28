@@ -15,133 +15,134 @@
 namespace sst {
 
 
-  template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
-  SST<Row, ImplMode, NameEnum, RowExtras>::SST(
-					       const vector<int> &_members, int _node_rank,
-					       std::pair<decltype(named_functions),std::vector<row_predicate_updater_t> > row_preds,failure_upcall_t _failure_upcall) :
-    named_functions(row_preds.first), members(_members.size()), num_members(_members.size()),
-    table(new InternalRow[_members.size()]), row_is_frozen(_members.size(), false),
-    row_predicate_updater_functions(row_preds.second), res_vec(num_members),
-    background_threads(), thread_shutdown(false), predicates(*(new Predicates())),
-    failure_upcall(_failure_upcall) {
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+SST<Row, ImplMode, NameEnum, RowExtras>::SST(
+	const vector<uint32_t> &_members, uint32_t my_node_id,
+	std::pair<decltype(named_functions),std::vector<row_predicate_updater_t> > row_preds, failure_upcall_t _failure_upcall) :
+	named_functions(row_preds.first), members(_members.size()), num_members(_members.size()),
+	table(new InternalRow[_members.size()]), row_is_frozen(_members.size(), false),
+	row_predicate_updater_functions(row_preds.second), res_vec(num_members),
+	background_threads(), thread_shutdown(false), predicates(*(new Predicates())),
+	failure_upcall(_failure_upcall){
 
-    // copy members and figure out the member_index
-    for (int i = 0; i < num_members; ++i) {
-      members[i] = _members[i];
-      if (members[i] == _node_rank) {
-	member_index = i;
-      }
-    }
-	    
-    //sort members descending by node rank, while keeping track of their specified index in the SST
-    for (int sst_index = 0; sst_index < num_members; ++sst_index) {
-      members_by_rank[members[sst_index]] = sst_index;
-    }
+            // copy members and figure out the member_index
+            for (uint32_t i = 0; i < num_members; ++i) {
+                members[i] = _members[i];
+                if (members[i] == my_node_id) {
+                    member_index = i;
+                }
+            }
 
-    //Static dispatch of implementation code based on the template parameter
-    if (ImplMode == Mode::Reads) {
-      // initialize each element of res_vec
-      int node_rank, sst_index;
-      for (auto const& rank_index : members_by_rank) {
-	std::tie(node_rank, sst_index) = rank_index;
-	if (sst_index != member_index) {
-	  // exchange lkey and addr of the table via tcp for enabling rdma reads
-	  res_vec[sst_index] = std::make_unique<resources>(
-							   node_rank, (char *) &(table[member_index]),
-							   (char *) &(table[sst_index]), sizeof(table[0]),
-							   sizeof(table[0]));
-	  // update qp_num_to_index
-	  qp_num_to_index[res_vec[sst_index].get()->qp->qp_num] = sst_index;
-	}
-      }
+            //sort members descending by node rank, while keeping track of their specified index in the SST
+            for (unsigned int sst_index = 0; sst_index < num_members; ++sst_index) {
+                members_by_rank[members[sst_index]] = sst_index;
+            }
 
-      // create the reader and the detector thread
-      thread reader(&SST::read, this);
-      thread detector(&SST::detect, this);
-      background_threads.push_back(std::move(reader));
-      background_threads.push_back(std::move(detector));
+            //Static dispatch of implementation code based on the template parameter
+            if (ImplMode == Mode::Reads) {
+                // initialize each element of res_vec
+                unsigned int node_rank, sst_index;
+                for (auto const& rank_index : members_by_rank) {
+                    std::tie(node_rank, sst_index) = rank_index;
+                    if (sst_index != member_index) {
+                        // exchange lkey and addr of the table via tcp for enabling rdma reads
+                        res_vec[sst_index] = std::make_unique<resources>(
+                                node_rank, (char *) &(table[member_index]),
+                                (char *) &(table[sst_index]), sizeof(table[0]),
+                                sizeof(table[0]));
+                        // update qp_num_to_index
+                        qp_num_to_index[res_vec[sst_index].get()->qp->qp_num] = sst_index;
 
-      cout << "Initialized SST and Started Threads" << endl;
-    } else {
-      // initialize each element of res_vec
-      int node_rank, sst_index;
-      for (auto const& rank_index : members_by_rank) {
-	std::tie(node_rank, sst_index) = rank_index;
-	if (sst_index != member_index) {
-	  // exchange lkey and addr of the table via tcp for enabling rdma writes
-	  res_vec[sst_index] = std::make_unique<resources>(
-							   node_rank, (char *) &(table[sst_index]),
-							   (char *) &(table[member_index]),
-							   sizeof(table[0]), sizeof(table[0]));
-	  // update qp_num_to_index
-	  qp_num_to_index[res_vec[sst_index].get()->qp->qp_num] = sst_index;
-	}
-      }
+                    }
+                }
 
-      thread detector(&SST::detect, this);
-      background_threads.push_back(std::move(detector));
+                // create the reader and the detector thread
+                thread reader(&SST::read, this);
+                thread detector(&SST::detect, this);
+                background_threads.push_back(std::move(reader));
+                background_threads.push_back(std::move(detector));
 
-      cout << "Initialized SST and Started Threads" << endl;
-    }
-  }
+                cout << "Initialized SST and Started Threads" << endl;
+            } else {
+                // initialize each element of res_vec
+                unsigned int node_rank, sst_index;
+                for (auto const& rank_index : members_by_rank) {
+                    std::tie(node_rank, sst_index) = rank_index;
+                    if (sst_index != member_index) {
+                        // exchange lkey and addr of the table via tcp for enabling rdma writes
+                        res_vec[sst_index] = std::make_unique<resources>(
+                                node_rank, (char *) &(table[sst_index]),
+                                (char *) &(table[member_index]),
+                                sizeof(table[0]), sizeof(table[0]));
+                        // update qp_num_to_index
+                        qp_num_to_index[res_vec[sst_index].get()->qp->qp_num] = sst_index;
+                    }
+                }
 
-  /**
-   * Destructor for the state table; sets thread_shutdown to true and waits for
-   * background threads to exit cleanly.
-   */
-  template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
-  SST<Row, ImplMode, NameEnum, RowExtras>::~SST() {
+                thread detector(&SST::detect, this);
+                background_threads.push_back(std::move(detector));
+
+                cout << "Initialized SST and Started Threads" << endl;
+            }
+        }
+
+/**
+ * Destructor for the state table; sets thread_shutdown to true and waits for
+ * background threads to exit cleanly.
+ */
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+SST<Row, ImplMode, NameEnum, RowExtras>::~SST() {
     thread_shutdown = true;
     delete &predicates;
     for(auto& thread : background_threads) {
       thread.join();
     }
-  }
+}
 
-  /** 
-   * Although a mutable reference is returned, only the local row should be 
-   * modified through this function. Modifications to remote rows will not be 
-   * propagated to other nodes and may be overwritten at any time when the SST
-   * system updates those remote rows.
-   *
-   * @param index The index of the row to access.
-   * @return A reference to the row structure stored at the requested row.
-   */
-  template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
-  volatile typename SST<Row, ImplMode, NameEnum, RowExtras>::InternalRow &
-  SST<Row, ImplMode, NameEnum, RowExtras>::get(int index) {
+/** 
+ * Although a mutable reference is returned, only the local row should be 
+ * modified through this function. Modifications to remote rows will not be 
+ * propagated to other nodes and may be overwritten at any time when the SST
+ * system updates those remote rows.
+ *
+ * @param index The index of the row to access.
+ * @return A reference to the row structure stored at the requested row.
+ */
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+volatile typename SST<Row, ImplMode, NameEnum, RowExtras>::InternalRow &
+SST<Row, ImplMode, NameEnum, RowExtras>::get(unsigned int index) {
     // check that the index is within range
     assert(index >= 0 && index < num_members);
 
     // return the table entry
     return table[index];
-  }
+}
 
-  /**
-   * Even the local row will be immutable when accessed through this method.
-   *
-   * @param index The index of the row to access.
-   * @return A reference to the row structure stored at the requested row.
-   */
-  template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
-  const volatile typename SST<Row, ImplMode, NameEnum, RowExtras>::InternalRow & SST<Row, ImplMode, NameEnum, RowExtras>::get(int index) const {
+/**
+ * Even the local row will be immutable when accessed through this method.
+ *
+ * @param index The index of the row to access.
+ * @return A reference to the row structure stored at the requested row.
+ */
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+const volatile typename SST<Row, ImplMode, NameEnum, RowExtras>::InternalRow & SST<Row, ImplMode, NameEnum, RowExtras>::get(unsigned int index) const {
     assert(index >= 0 && index < num_members);
     return table[index];
   }
 
-  /**
-   * Simply calls the const get function.
-   */
-  template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
-  const volatile typename SST<Row, ImplMode, NameEnum, RowExtras>::InternalRow & SST<Row, ImplMode, NameEnum, RowExtras>::operator [](int index) const {
+/**
+ * Simply calls the const get function.
+ */
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+const volatile typename SST<Row, ImplMode, NameEnum, RowExtras>::InternalRow & SST<Row, ImplMode, NameEnum, RowExtras>::operator [](unsigned int index) const {
     return get(index);
   }
 
-  /**
-   * Simply calls the get function.
-   */
-  template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
-  volatile typename SST<Row, ImplMode, NameEnum, RowExtras>::InternalRow & SST<Row, ImplMode, NameEnum, RowExtras>::operator [](int index) {
+/**
+ * Simply calls the get function.
+ */
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+volatile typename SST<Row, ImplMode, NameEnum, RowExtras>::InternalRow & SST<Row, ImplMode, NameEnum, RowExtras>::operator [](unsigned int index) {
     return get(index);
   }
 
@@ -163,37 +164,38 @@ namespace sst {
   template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
   int SST<Row, ImplMode, NameEnum, RowExtras>::get_local_index() const {
     return member_index;
-  }
+}
 
-  /**
-   * This is a deep copy of the table that can be used for predicate evaluation,
-   * which will no longer be affected by remote nodes updating their rows.
-   *
-   * @return A copy of all the SST's rows in their current state.
-   */
-  template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
-  std::unique_ptr<typename SST<Row, ImplMode, NameEnum, RowExtras>::SST_Snapshot> SST<Row, ImplMode, NameEnum, RowExtras>::get_snapshot() const {
-    return std::make_unique<SST_Snapshot>(table, num_members);
-  }
+/**
+ * This is a deep copy of the table that can be used for predicate evaluation,
+ * which will no longer be affected by remote nodes updating their rows.
+ *
+ * @return A copy of all the SST's rows in their current state.
+ */
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+std::unique_ptr<typename SST<Row, ImplMode, NameEnum, RowExtras>::SST_Snapshot>
+SST<Row, ImplMode, NameEnum, RowExtras>::get_snapshot() const {
+        return std::make_unique<SST_Snapshot>(table, num_members);
+}
 
-  template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
-  void SST<Row, ImplMode, NameEnum, RowExtras>::freeze(int index) {
-    row_is_frozen[index] = true;
-    num_frozen++;
-    res_vec[index].reset();
-    failure_upcall(members[index]);
-  }
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+void SST<Row, ImplMode, NameEnum, RowExtras>::freeze(int index) {
+        row_is_frozen[index] = true;
+        num_frozen++;
+        res_vec[index].reset();
+        failure_upcall(members[index]);
+}
 
-  /**
-   * Exchanges a single byte of data with each member of the SST group over the
-   * TCP (not RDMA) connection, in descending order of the members' node ranks.
-   * This creates a synchronization barrier, since the TCP reads are blocking,
-   * and should be called after SST initialization to ensure all nodes have
-   * finished initializing their local SST code.
-   */
-  template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
-  void SST<Row, ImplMode, NameEnum, RowExtras>::sync_with_members() const {
-    int node_rank, sst_index;
+/**
+ * Exchanges a single byte of data with each member of the SST group over the
+ * TCP (not RDMA) connection, in descending order of the members' node ranks.
+ * This creates a synchronization barrier, since the TCP reads are blocking,
+ * and should be called after SST initialization to ensure all nodes have
+ * finished initializing their local SST code.
+ */
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+void SST<Row, ImplMode, NameEnum, RowExtras>::sync_with_members() const {
+    unsigned int node_rank, sst_index;
     for (auto const& rank_index : members_by_rank) {
       std::tie(node_rank, sst_index) = rank_index;
       if (sst_index != member_index) {
@@ -206,45 +208,45 @@ namespace sst {
   /**
    * If this SST is in Writes mode, this function does nothing.
    */
-  template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
-  void SST<Row, ImplMode, NameEnum, RowExtras>::refresh_table() {
-    if (ImplMode == Mode::Reads) {
-      for (int index = 0; index < num_members; ++index) {
-	// don't read own row or a frozen row
-	if (index == member_index || row_is_frozen[index]) {
-	  continue;
-	}
-	// perform a remote RDMA read on the owner of the row
-	res_vec[index]->post_remote_read(sizeof(table[0]));
-      }
-      // track which nodes haven't failed yet
-      vector<bool> polled_successfully(num_members, false);
-      // poll for one less than number of rows
-      for (int index = 0; index < num_members - num_frozen - 1; ++index) {
-	// poll for completion
-	auto p = verbs_poll_completion();
-	int qp_num = p.first;
-	int result = p.second;
-	if (result == 1) {
-	  polled_successfully[qp_num_to_index[qp_num]] = true;
-	}
-	else if (result == -1) {
-	  freeze(qp_num_to_index[qp_num]);
-	  return;
-	}
-	else if (result == 0) {
-	  // find some node that hasn't been polled yet and report it
-	  for (int index = 0; index < num_members; ++index) {
-	    if (index == member_index || row_is_frozen[index] || polled_successfully[index] == true) {
-	      continue;
-	    }
-	    freeze(index);
-	    return;
-	  }
-	}
-      }
-    }
-  }
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+void SST<Row, ImplMode, NameEnum, RowExtras>::refresh_table() {
+        if (ImplMode == Mode::Reads) {
+            for (unsigned int index = 0; index < num_members; ++index) {
+                // don't read own row or a frozen row
+                if (index == member_index || row_is_frozen[index]) {
+                    continue;
+                }
+                // perform a remote RDMA read on the owner of the row
+                res_vec[index]->post_remote_read(sizeof(table[0]));
+            }
+            // track which nodes haven't failed yet
+            vector<bool> polled_successfully(num_members, false);
+            // poll for one less than number of rows
+            for (unsigned int index = 0; index < num_members - num_frozen - 1; ++index) {
+                // poll for completion
+                auto p = verbs_poll_completion();
+                int qp_num = p.first;
+                int result = p.second;
+                if (result == 1) {
+                    polled_successfully[qp_num_to_index[qp_num]] = true;
+                }
+                else if (result == -1) {
+                    freeze(qp_num_to_index[qp_num]);
+                    return;
+                }
+                else if (result == 0) {
+                    // find some node that hasn't been polled yet and report it
+                    for (int index = 0; index < num_members; ++index) {
+                        if (index == member_index || row_is_frozen[index] || polled_successfully[index] == true) {
+                            continue;
+                        }
+                        freeze(index);
+                        return;
+                    }
+                }
+            }
+        }
+}
 
   /**
    * If this SST is in Reads mode, this function is run in a detached background
@@ -348,42 +350,42 @@ namespace sst {
    */
   template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
   void SST<Row, ImplMode, NameEnum, RowExtras>::put() {
-    if (ImplMode == Mode::Writes) {
-      for (int index = 0; index < num_members; ++index) {
-	// don't write to yourself or a frozen row
-	if (index == member_index || row_is_frozen[index]) {
-	  continue;
-	}
-	// perform a remote RDMA write on the owner of the row
-	res_vec[index]->post_remote_write(sizeof(table[0]));
-      }
-      // track which nodes haven't failed yet
-      vector<bool> polled_successfully(num_members, false);
-      // poll for one less than number of rows
-      for (int index = 0; index < num_members - num_frozen - 1; ++index) {
-	// poll for completion
-	auto p = verbs_poll_completion();
-	int qp_num = p.first;
-	int result = p.second;
-	if (result == 1) {
-	  polled_successfully[qp_num_to_index[qp_num]] = true;
-	}
-	else if (result == -1) {
-	  freeze(qp_num_to_index[qp_num]);
-	  return;
-	}
-	else if (result == 0) {
-	  // find some node that hasn't been polled yet and report it
-	  for (int index = 0; index < num_members; ++index) {
-	    if (index == member_index || row_is_frozen[index] || polled_successfully[index] == true) {
-	      continue;
-	    }
-	    freeze(index);
-	    return;
-	  }
-	}
-      }
-    }
+          if (ImplMode == Mode::Writes) {
+              for (unsigned int index = 0; index < num_members; ++index) {
+                  // don't write to yourself or a frozen row
+                  if (index == member_index || row_is_frozen[index]) {
+                      continue;
+                  }
+                  // perform a remote RDMA write on the owner of the row
+                  res_vec[index]->post_remote_write(sizeof(table[0]));
+              }
+              // track which nodes haven't failed yet
+              vector<bool> polled_successfully(num_members, false);
+              // poll for one less than number of rows
+              for (unsigned int index = 0; index < num_members - num_frozen - 1; ++index) {
+                  // poll for completion
+                  auto p = verbs_poll_completion();
+                  int qp_num = p.first;
+                  int result = p.second;
+                  if (result == 1) {
+                      polled_successfully[qp_num_to_index[qp_num]] = true;
+                  }
+                  else if (result == -1) {
+                      freeze(qp_num_to_index[qp_num]);
+                      return;
+                  }
+                  else if (result == 0) {
+                      // find some node that hasn't been polled yet and report it
+                      for (int index = 0; index < num_members; ++index) {
+                          if (index == member_index || row_is_frozen[index] || polled_successfully[index] == true) {
+                              continue;
+                          }
+                          freeze(index);
+                          return;
+                      }
+                  }
+              }
+          }
   }
 
     /**
@@ -400,45 +402,43 @@ namespace sst {
      * row to write
      * @param size The number of bytes to write, starting at the offset.
      */
-    template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
-      void SST<Row, ImplMode, NameEnum, RowExtras>::put(long long int offset, long long int size) {
-      if (ImplMode == Mode::Writes) {
-	for (int index = 0; index < num_members; ++index) {
-	  // don't write to yourself or a frozen row
-	  if (index == member_index || row_is_frozen[index]) {
-	    continue;
-	  }
-	  // perform a remote RDMA write on the owner of the row
-	  res_vec[index]->post_remote_write(offset, size);
-	}
-	// track which nodes haven't failed yet
-	vector<bool> polled_successfully(num_members, false);
-	// poll for one less than number of rows
-	for (int index = 0; index < num_members - num_frozen - 1; ++index) {
-	  // poll for completion
-	  auto p = verbs_poll_completion();
-	  int qp_num = p.first;
-	  int result = p.second;
-	  if (result == 1) {
-	    polled_successfully[qp_num_to_index[qp_num]] = true;
-	  }
-	  else if (result == -1) {
-	    freeze(qp_num_to_index[qp_num]);
-	    return;
-	  }
-	  else if (result == 0) {
-	    // find some node that hasn't been polled yet and report it
-	    for (int index = 0; index < num_members; ++index) {
-	      if (index == member_index || row_is_frozen[index] || polled_successfully[index] == true) {
-		continue;
-	      }
-	      freeze(index);
-	      return;
-	    }
-	  }
-	}
-      }
-    }      
+  template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+  void SST<Row, ImplMode, NameEnum, RowExtras>::put(long long int offset, long long int size) {
+          if (ImplMode == Mode::Writes) {
+              for (unsigned int index = 0; index < num_members; ++index) {
+                  // don't write to yourself or a frozen row
+                  if (index == member_index || row_is_frozen[index]) {
+                      continue;
+                  }
+                  // perform a remote RDMA write on the owner of the row
+                  res_vec[index]->post_remote_write(offset, size);
+              }
+              // track which nodes haven't failed yet
+              vector<bool> polled_successfully(num_members, false);
+              // poll for one less than number of rows
+              for (unsigned int index = 0; index < num_members - num_frozen - 1; ++index) {
+                  // poll for completion
+                  auto p = verbs_poll_completion();
+                  int qp_num = p.first;
+                  int result = p.second;
+                  if (result == 1) {
+                      polled_successfully[qp_num_to_index[qp_num]] = true;
+                  } else if (result == -1) {
+                      freeze (qp_num_to_index[qp_num]);
+                      return;
+                  } else if (result == 0) {
+                      // find some node that hasn't been polled yet and report it
+                      for (int index = 0; index < num_members; ++index) {
+                          if (index == member_index || row_is_frozen[index] || polled_successfully[index] == true) {
+                              continue;
+                          }
+                          freeze(index);
+                          return;
+                      }
+                  }
+              }
+          }
+  }
 
     //SST_Snapshot implementation
 
