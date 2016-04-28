@@ -46,3 +46,4 @@ routing/router_experiment
 /experiments/script_copy.sh
 /script_copy.sh
 /script_copy.sh~
+/libsst.so
