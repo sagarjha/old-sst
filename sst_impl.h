@@ -229,8 +229,11 @@ namespace sst {
 	  polled_successfully[qp_num_to_index[qp_num]] = true;
 	}
 	else if (result == -1) {
-	  freeze(qp_num_to_index[qp_num]);
-	  return;
+	  int index = qp_num_to_index[qp_num];
+	  if (!row_is_frozen[index]) {
+	    freeze(index);
+	    return;	    
+	  }
 	}
 	else if (result == 0) {
 	  // find some node that hasn't been polled yet and report it
@@ -369,8 +372,11 @@ namespace sst {
 	  polled_successfully[qp_num_to_index[qp_num]] = true;
 	}
 	else if (result == -1) {
-	  freeze(qp_num_to_index[qp_num]);
-	  return;
+	  int index = qp_num_to_index[qp_num];
+	  if (!row_is_frozen[index]) {
+	    freeze(index);
+	    return;
+	  }
 	}
 	else if (result == 0) {
 	  // find some node that hasn't been polled yet and report it
@@ -386,99 +392,102 @@ namespace sst {
     }
   }
 
-    /**
-     * This can be used to write only a single state variable to the remote nodes,
-     * instead of the enitre row, if only that variable has changed. To get the
-     * correct offset and size, use `offsetof` and `sizeof`. For example, if the
-     * Row type is `RowType` and the variable to write is `RowType::item`, use
-     *
-     *     sst_instance.put(offsetof(RowType, item), sizeof(item));
-     *
-     * If this SST is in Reads mode, this function does nothing.
-     *
-     * @param offset The offset, within the Row structure, of the region of the
-     * row to write
-     * @param size The number of bytes to write, starting at the offset.
-     */
-    template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
-      void SST<Row, ImplMode, NameEnum, RowExtras>::put(long long int offset, long long int size) {
-      if (ImplMode == Mode::Writes) {
-	for (int index = 0; index < num_members; ++index) {
-	  // don't write to yourself or a frozen row
-	  if (index == member_index || row_is_frozen[index]) {
-	    continue;
-	  }
-	  // perform a remote RDMA write on the owner of the row
-	  res_vec[index]->post_remote_write(offset, size);
+  /**
+   * This can be used to write only a single state variable to the remote nodes,
+   * instead of the enitre row, if only that variable has changed. To get the
+   * correct offset and size, use `offsetof` and `sizeof`. For example, if the
+   * Row type is `RowType` and the variable to write is `RowType::item`, use
+   *
+   *     sst_instance.put(offsetof(RowType, item), sizeof(item));
+   *
+   * If this SST is in Reads mode, this function does nothing.
+   *
+   * @param offset The offset, within the Row structure, of the region of the
+   * row to write
+   * @param size The number of bytes to write, starting at the offset.
+   */
+  template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+  void SST<Row, ImplMode, NameEnum, RowExtras>::put(long long int offset, long long int size) {
+    if (ImplMode == Mode::Writes) {
+      for (int index = 0; index < num_members; ++index) {
+	// don't write to yourself or a frozen row
+	if (index == member_index || row_is_frozen[index]) {
+	  continue;
 	}
-	// track which nodes haven't failed yet
-	vector<bool> polled_successfully(num_members, false);
-	// poll for one less than number of rows
-	for (int index = 0; index < num_members - num_frozen - 1; ++index) {
-	  // poll for completion
-	  auto p = verbs_poll_completion();
-	  int qp_num = p.first;
-	  int result = p.second;
-	  if (result == 1) {
-	    polled_successfully[qp_num_to_index[qp_num]] = true;
-	  }
-	  else if (result == -1) {
-	    freeze(qp_num_to_index[qp_num]);
+	// perform a remote RDMA write on the owner of the row
+	res_vec[index]->post_remote_write(offset, size);
+      }
+      // track which nodes haven't failed yet
+      vector<bool> polled_successfully(num_members, false);
+      // poll for one less than number of rows
+      for (int index = 0; index < num_members - num_frozen - 1; ++index) {
+	// poll for completion
+	auto p = verbs_poll_completion();
+	int qp_num = p.first;
+	int result = p.second;
+	if (result == 1) {
+	  polled_successfully[qp_num_to_index[qp_num]] = true;
+	}
+	else if (result == -1) {
+	  int index = qp_num_to_index[qp_num];
+	  if (!row_is_frozen[index]) {
+	    freeze(index);
 	    return;
 	  }
-	  else if (result == 0) {
-	    // find some node that hasn't been polled yet and report it
-	    for (int index = 0; index < num_members; ++index) {
-	      if (index == member_index || row_is_frozen[index] || polled_successfully[index] == true) {
-		continue;
-	      }
-	      freeze(index);
-	      return;
+	}
+	else if (result == 0) {
+	  // find some node that hasn't been polled yet and report it
+	  for (int index = 0; index < num_members; ++index) {
+	    if (index == member_index || row_is_frozen[index] || polled_successfully[index] == true) {
+	      continue;
 	    }
+	    freeze(index);
+	    return;
 	  }
 	}
       }
-    }      
-
-    //SST_Snapshot implementation
-
-
-    /**
-     * @param _table A reference to the SST's current internal state table
-     * @param _num_members The number of members (rows) in the SST
-     * @param _named_functions A reference to the SST's list of named functions
-     */
-    template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
-      SST<Row, ImplMode, NameEnum, RowExtras>::SST_Snapshot::SST_Snapshot(
-									  const unique_ptr<volatile InternalRow[]>& _table, int _num_members) :
-      num_members(_num_members), table(new InternalRow[num_members]) {
-
-      std::memcpy(const_cast<InternalRow*>(table.get()),
-		  const_cast<const InternalRow*>(_table.get()),
-		  num_members * sizeof(InternalRow));
     }
+  }      
 
-    template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
-      SST<Row, ImplMode, NameEnum, RowExtras>::SST_Snapshot::SST_Snapshot(
-									  const SST_Snapshot& to_copy) :
-      num_members(to_copy.num_members), table(new InternalRow[num_members]) {
-
-      std::memcpy(table.get(), to_copy.table.get(),
-		  num_members * sizeof(InternalRow));
-    }
+  //SST_Snapshot implementation
 
 
-    template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
-      const typename SST<Row, ImplMode, NameEnum, RowExtras>::InternalRow & SST<Row, ImplMode, NameEnum, RowExtras>::SST_Snapshot::get(int index) const {
-      assert(index >= 0 && index < num_members);
-      return table[index];
-    }
+  /**
+   * @param _table A reference to the SST's current internal state table
+   * @param _num_members The number of members (rows) in the SST
+   * @param _named_functions A reference to the SST's list of named functions
+   */
+  template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+  SST<Row, ImplMode, NameEnum, RowExtras>::SST_Snapshot::SST_Snapshot(
+								      const unique_ptr<volatile InternalRow[]>& _table, int _num_members) :
+    num_members(_num_members), table(new InternalRow[num_members]) {
 
-    template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
-      const typename SST<Row, ImplMode, NameEnum, RowExtras>::InternalRow & SST<Row, ImplMode, NameEnum, RowExtras>::SST_Snapshot::operator[](int index) const {
-      return get(index);
-    }
+    std::memcpy(const_cast<InternalRow*>(table.get()),
+		const_cast<const InternalRow*>(_table.get()),
+		num_members * sizeof(InternalRow));
+  }
 
-    } /* namespace sst */
+  template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+  SST<Row, ImplMode, NameEnum, RowExtras>::SST_Snapshot::SST_Snapshot(
+								      const SST_Snapshot& to_copy) :
+    num_members(to_copy.num_members), table(new InternalRow[num_members]) {
+
+    std::memcpy(table.get(), to_copy.table.get(),
+		num_members * sizeof(InternalRow));
+  }
+
+
+  template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+  const typename SST<Row, ImplMode, NameEnum, RowExtras>::InternalRow & SST<Row, ImplMode, NameEnum, RowExtras>::SST_Snapshot::get(int index) const {
+    assert(index >= 0 && index < num_members);
+    return table[index];
+  }
+
+  template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+  const typename SST<Row, ImplMode, NameEnum, RowExtras>::InternalRow & SST<Row, ImplMode, NameEnum, RowExtras>::SST_Snapshot::operator[](int index) const {
+    return get(index);
+  }
+
+} /* namespace sst */
 
 #endif /* SST_H */
