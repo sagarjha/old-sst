@@ -45,7 +45,7 @@ int main () {
   verbs_initialize();
   
   // form a group with only successor and predecessor
-  vector <int> members (3);
+  vector <uint32_t> members (3);
   // having first row for predecessor and third for successor creates an infinite wait loop
   // instead we should have the members in increasing order of node_rank
   int predecessor, successor, pred_index, succ_index;

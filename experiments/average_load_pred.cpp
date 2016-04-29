@@ -18,7 +18,7 @@ static const long long int SECONDS_TO_NS = 1000000000LL;
 static const double RESPONSE_TIME_THRESHOLD = 150.0;
 static const int TIMING_NODE = 0;
 
-static int num_nodes, this_node_rank;
+static uint32_t num_nodes, this_node_rank;
 
 using std::cout;
 using std::endl;
@@ -74,8 +74,8 @@ int main (int argc, char** argv) {
 	verbs_initialize();
 
 	// make all the nodes members of a group
-	vector <int> group_members (num_nodes);
-	for (int i = 0; i < num_nodes; ++i) {
+	vector <uint32_t> group_members (num_nodes);
+	for (uint32_t i = 0; i < num_nodes; ++i) {
 		group_members[i] = i;
 	}
 

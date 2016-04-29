@@ -28,7 +28,7 @@ struct SimpleRow {
 int main () {
   srand (time (NULL));
   // input number of nodes and the local node id
-  int num_nodes, node_rank;
+  uint32_t num_nodes, node_rank;
   cin >> num_nodes >> node_rank;
 
   // input the ip addresses
@@ -45,7 +45,7 @@ int main () {
   
   // form a group with a subset of all the nodes
   vector <uint32_t> members (num_nodes);
-  for (int i = 0; i < num_nodes; ++i) {
+  for (uint32_t i = 0; i < num_nodes; ++i) {
     members[i] = i;
   }
   

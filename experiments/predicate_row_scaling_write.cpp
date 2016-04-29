@@ -35,7 +35,7 @@ extern int port;
 }
 }
 
-static int num_nodes, this_node_rank;
+static uint32_t num_nodes, this_node_rank;
 static const int EXPERIMENT_TRIALS = 10000;
 
 int main (int argc, char** argv) {
@@ -87,8 +87,8 @@ int main (int argc, char** argv) {
 	verbs_initialize();
 
 	// make all the nodes members of a group
-	vector <int> group_members (num_nodes);
-	for (int i = 0; i < num_nodes; ++i) {
+	vector <uint32_t> group_members (num_nodes);
+	for (uint32_t i = 0; i < num_nodes; ++i) {
 		group_members[i] = i;
 	}
 	// create a new shared state table with all the members
