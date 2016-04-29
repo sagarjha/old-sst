@@ -195,12 +195,12 @@ class SST {
          * this code is running.
          */
 
-        SST(const vector<uint32_t> &_members, uint32_t my_node_id, failure_upcall_t failure_upcall=NULL) :
+  SST(const vector<uint32_t> &_members, uint32_t my_node_id, failure_upcall_t failure_upcall=nullptr) :
                 SST(_members, my_node_id, std::pair<std::tuple<>, std::vector<row_predicate_updater_t> > { }, failure_upcall) {
         }
 
         template<typename ExtensionList, typename ... RestFunctions>
-        SST(const vector<uint32_t> &_members, uint32_t my_node_id, const PredicateBuilder<Row, ExtensionList> &pb, RestFunctions ... named_funs, failure_upcall_t failure_upcall=NULL) :
+        SST(const vector<uint32_t> &_members, uint32_t my_node_id, failure_upcall_t failure_upcall, const PredicateBuilder<Row,  ExtensionList> &pb, RestFunctions ... named_funs) :
         SST(_members, my_node_id, constructor_helper<0>(pb, named_funs...), failure_upcall) {
 
         }
@@ -214,7 +214,7 @@ class SST {
          * @param _node_rank The node rank of the local node, i.e. the one on which
          * this code is running.
          */
-        SST(const vector<uint32_t> &_members, uint32_t my_node_id, std::pair<decltype(named_functions), std::vector<row_predicate_updater_t> >, failure_upcall_t _failure_upcall=NULL);
+  SST(const vector<uint32_t> &_members, uint32_t my_node_id, std::pair<decltype(named_functions), std::vector<row_predicate_updater_t> >, failure_upcall_t _failure_upcall=nullptr);
         virtual ~SST();
         /** Accesses a local or remote row. */
         volatile InternalRow & get(unsigned int index);

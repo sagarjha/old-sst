@@ -63,7 +63,7 @@ int main () {
 	  NamedRowPredicates<rowpred_template_arg(test_pred),
 						 rowpred_template_arg(second_pred)>;
   using this_SST = SST<SimpleRow, Mode::Writes, Name, PredicateTemplateArgs>;
-  this_SST *sst = new this_SST (members, node_rank,test_pred,second_pred);
+  this_SST *sst = new this_SST (members,node_rank,nullptr,test_pred,second_pred);
   const int local = sst->get_local_index();
   sst->call_named_predicate<Name::name>(local);
   sst->call_named_predicate<Name::newname>(local);

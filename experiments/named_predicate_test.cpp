@@ -60,7 +60,7 @@ int main () {
   auto test_pred = name_predicate<Name,Name::outer_name>(E(test_pred_pre));
   static_assert(decltype(test_pred)::num_updater_functions::value >= 1,"why aren't there any?");
   using this_SST = SST<SimpleRow, Mode::Writes, Name, decltype(test_pred) >;
-  this_SST *sst = new this_SST (members, node_rank,test_pred);
+  this_SST *sst = new this_SST (members, node_rank,nullptr,test_pred);
   const int local = sst->get_local_index();
   using namespace std::chrono;
   std::this_thread::sleep_for (seconds(3));
