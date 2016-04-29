@@ -243,6 +243,8 @@ class SST {
         void sync_with_members() const;
         /** Marks a row as frozen, so it will no longer update, and its corresponding node will not receive writes. */
         void freeze(int index);
+        /** Disables predicate evaluation by shutting down the background thread. */
+        void disable_all_predicates();
 
         class Predicates;
         /** Predicate management object for this SST. */

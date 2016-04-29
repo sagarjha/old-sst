@@ -92,7 +92,17 @@ SST<Row, ImplMode, NameEnum, RowExtras>::SST(const vector<uint32_t> &_members, u
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 SST<Row, ImplMode, NameEnum, RowExtras>::~SST() {
     thread_shutdown = true;
+    cout << "SST: About to wait for background threads" << endl;
+    for (auto& thread : background_threads) {
+        if(thread.joinable())
+            thread.join();
+    }
     delete &predicates;
+}
+
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+void SST<Row, ImplMode, NameEnum, RowExtras>::disable_all_predicates() {
+    thread_shutdown = true;
     for (auto& thread : background_threads) {
         thread.join();
     }
