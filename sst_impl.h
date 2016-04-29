@@ -18,9 +18,9 @@ template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 SST<Row, ImplMode, NameEnum, RowExtras>::SST(const vector<uint32_t> &_members, uint32_t my_node_id,
         std::pair<decltype(named_functions), std::vector<row_predicate_updater_t> > row_preds, failure_upcall_t _failure_upcall) :
         named_functions(row_preds.first), members(_members.size()), num_members(_members.size()),
-        table(new InternalRow[_members.size()]), row_is_frozen(_members.size(), false),
+        table(new InternalRow[_members.size()]), row_is_frozen(_members.size(), false), failure_upcall(_failure_upcall),
         row_predicate_updater_functions(row_preds.second), res_vec(num_members), background_threads(),
-        thread_shutdown(false), predicates(*(new Predicates())), failure_upcall(_failure_upcall) {
+        thread_shutdown(false), predicates(*(new Predicates())){
 
     // copy members and figure out the member_index
     for (uint32_t i = 0; i < num_members; ++i) {
@@ -235,7 +235,7 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::refresh_table() {
                 }
             } else if (result == 0) {
                 // find some node that hasn't been polled yet and report it
-                for (int index = 0; index < num_members; ++index) {
+                for (unsigned int index = 0; index < num_members; ++index) {
                     if (index == member_index || row_is_frozen[index] || polled_successfully[index] == true) {
                         continue;
                     }
@@ -372,7 +372,7 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::put() {
                 }
             } else if (result == 0) {
                 // find some node that hasn't been polled yet and report it
-                for (int index = 0; index < num_members; ++index) {
+                for (unsigned int index = 0; index < num_members; ++index) {
                     if (index == member_index || row_is_frozen[index] || polled_successfully[index] == true) {
                         continue;
                     }
@@ -412,7 +412,7 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::put(long long int offset, long lon
         // track which nodes haven't failed yet
         vector<bool> polled_successfully(num_members, false);
         // poll for one less than number of rows
-        for (int index = 0; index < num_members - num_frozen - 1; ++index) {
+        for (unsigned int index = 0; index < num_members - num_frozen - 1; ++index) {
             // poll for completion
             auto p = verbs_poll_completion();
             int qp_num = p.first;
