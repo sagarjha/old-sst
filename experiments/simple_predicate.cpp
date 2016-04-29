@@ -44,7 +44,7 @@ int main () {
   verbs_initialize();
   
   // form a group with a subset of all the nodes
-  vector <int> members (num_nodes);
+  vector <uint32_t> members (num_nodes);
   for (int i = 0; i < num_nodes; ++i) {
     members[i] = i;
   }

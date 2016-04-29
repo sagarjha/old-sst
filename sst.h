@@ -205,6 +205,12 @@ class SST {
 
         }
 
+		template<typename ExtensionList, typename ... RestFunctions>
+        SST(const vector<uint32_t> &_members, uint32_t my_node_id, const PredicateBuilder<Row,  ExtensionList> &pb, RestFunctions ... named_funs) :
+        SST(_members, my_node_id, constructor_helper<0>(pb, named_funs...), nullptr) {
+
+        }
+
         /**
          * Delegate constructor to construct an SST instance without named
          * functions.

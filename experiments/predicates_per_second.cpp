@@ -83,7 +83,7 @@ int main (int argc, char** argv) {
 	verbs_initialize();
 
 	// make all the nodes members of a group
-	vector <int> group_members (num_nodes);
+	vector <uint32_t> group_members (num_nodes);
 	for (int i = 0; i < num_nodes; ++i) {
 		group_members[i] = i;
 	}
