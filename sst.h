@@ -49,7 +49,7 @@ enum class Mode {
     Writes
 };
 
-typedef function<void(int)> failure_upcall_t;
+typedef function<void(uint32_t)> failure_upcall_t;
 
 	
 /**

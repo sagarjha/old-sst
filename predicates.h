@@ -47,7 +47,7 @@ class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
         using trig = function<void(SST&)>;
         /** Type definition for a list of predicates, where each predicate is 
          * paired with a list of callbacks */
-        using pred_list = list<pair<pred, list<trig>>>;
+        using pred_list = list<std::unique_ptr<pair<pred, list<trig>>>>;
 
         using evolver = std::function<pred (const SST&, int) >;
         using evolve_trig = std::function<void (SST&, int)>;
@@ -123,15 +123,15 @@ auto SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::insert(pred predicate,
     g_list.push_back(trigger);
     if (type == PredicateType::ONE_TIME) {
         one_time_predicates.push_back(
-                pair<pred, list<trig>>(predicate, g_list));
+                std::make_unique<pair<pred, list<trig>>>(predicate, g_list));
         return pred_handle(--one_time_predicates.end(), type);
     } else if (type == PredicateType::RECURRENT) {
         recurrent_predicates.push_back(
-                pair<pred, list<trig>>(predicate, g_list));
+                std::make_unique<pair<pred, list<trig>>>(predicate, g_list));
         return pred_handle(--recurrent_predicates.end(), type);
     } else {
         transition_predicates.push_back(
-                pair<pred, list<trig>>(predicate, g_list));
+                std::make_unique<pair<pred, list<trig>>>(predicate, g_list));
         transition_predicate_states.push_back(false);
         return pred_handle(--transition_predicates.end(), type);
     }
@@ -171,14 +171,14 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::remove(pred_handle& ha
     if(!handle.is_valid) {
         return;
     }
-    if(handle.type == PredicateType::ONE_TIME) {
-        one_time_predicates.erase(handle.iter);
-    } else if(handle.type == PredicateType::RECURRENT) {
-        recurrent_predicates.erase(handle.iter);
-    } else if(handle.type == PredicateType::TRANSITION) {
-
-        transition_predicates.erase(handle.iter);
-    }
+    handle.iter->reset();
+//    if(handle.type == PredicateType::ONE_TIME) {
+//    } else if(handle.type == PredicateType::RECURRENT) {
+//        recurrent_predicates.erase(handle.iter);
+//    } else if(handle.type == PredicateType::TRANSITION) {
+//
+//        transition_predicates.erase(handle.iter);
+//    }
     handle.is_valid = false;
 }
 

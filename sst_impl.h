@@ -311,8 +311,8 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
         // one time predicates need to be evaluated only until they become true
         auto pred_it = predicates.one_time_predicates.begin();
         while (pred_it != predicates.one_time_predicates.end()) {
-            if (pred_it->first(*this) == true) {
-                for (auto func : pred_it->second) {
+            if ((*pred_it != nullptr) && (*pred_it)->first(*this) == true) {
+                for (auto func : (*pred_it)->second) {
                     func(*this);
                 }
                 // erase the predicate as it was just found to be true
@@ -324,8 +324,8 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
 
         // recurrent predicates are evaluated each time they are found to be true
         for (pred_it = predicates.recurrent_predicates.begin(); pred_it != predicates.recurrent_predicates.end(); ++pred_it) {
-            if (pred_it->first(*this) == true) {
-                for (auto func : pred_it->second) {
+            if ((*pred_it != nullptr) && (*pred_it)->first(*this) == true) {
+                for (auto func : (*pred_it)->second) {
                     func(*this);
                 }
             }
@@ -335,19 +335,52 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
         pred_it = predicates.transition_predicates.begin();
         auto pred_state_it = predicates.transition_predicate_states.begin();
         while (pred_it != predicates.transition_predicates.end()) {
-            //*pred_state_it is the previous state of the predicate at *pred_it
-            bool curr_pred_state = pred_it->first(*this);
-            if (curr_pred_state == true && *pred_state_it == false) {
-                for (auto func : pred_it->second) {
-                    func(*this);
+            if(*pred_it != nullptr) {
+                //*pred_state_it is the previous state of the predicate at *pred_it
+                bool curr_pred_state = (*pred_it)->first(*this);
+                if (curr_pred_state == true && *pred_state_it == false) {
+                    for (auto func : (*pred_it)->second) {
+                        func(*this);
+                    }
                 }
-            }
-            *pred_state_it = curr_pred_state;
+                *pred_state_it = curr_pred_state;
 
-            ++pred_it;
-            ++pred_state_it;
+                ++pred_it;
+                ++pred_state_it;
+            }
+        }
+
+        //clean up deleted predicates
+        pred_it = predicates.one_time_predicates.begin();
+        while (pred_it != predicates.one_time_predicates.end()) {
+            if(*pred_it == nullptr) {
+                pred_it = predicates.one_time_predicates.erase(pred_it);
+            } else {
+                pred_it++;
+            }
+        }
+        pred_it = predicates.recurrent_predicates.begin();
+        while (pred_it != predicates.recurrent_predicates.end()) {
+            if(*pred_it == nullptr) {
+                pred_it = predicates.recurrent_predicates.erase(pred_it);
+            } else {
+                pred_it++;
+            }
+        }
+        pred_it = predicates.transition_predicates.begin();
+        pred_state_it = predicates.transition_predicate_states.begin();
+        while (pred_it != predicates.transition_predicates.end()) {
+            if(*pred_it == nullptr) {
+                pred_it = predicates.transition_predicates.erase(pred_it);
+                pred_state_it = predicates.transition_predicate_states.erase(pred_state_it);
+            } else {
+                pred_it++;
+                pred_state_it++;
+            }
         }
     }
+
+
     cout << "Predicate detection thread shutting down" << endl;
 }
 
