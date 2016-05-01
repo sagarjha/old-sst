@@ -282,6 +282,7 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::read() {
  */
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
+    try {
     while (!thread_shutdown) {
         //Take the predicate lock before reading the predicate lists
         std::lock_guard<std::recursive_mutex> lock(predicates.predicate_mutex);
@@ -382,6 +383,10 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
 
 
     cout << "Predicate detection thread shutting down" << endl;
+    } catch (const std::exception& e) {
+        cout << "Predicate detection thread had an exception: " << e.what() << endl;
+        throw e;
+    }
 }
 
 /**
