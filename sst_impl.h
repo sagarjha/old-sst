@@ -7,6 +7,7 @@
 #include <memory>
 #include <utility>
 #include <cstring>
+#include <mutex>
 
 #include "sst.h"
 #include "predicates.h"
@@ -282,6 +283,8 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::read() {
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
     while (!thread_shutdown) {
+        //Take the predicate lock before reading the predicate lists
+        std::lock_guard<std::recursive_mutex> lock(predicates.predicate_mutex);
 
         //update intermediate results for Row Predicates
         for (auto &f : row_predicate_updater_functions) {

@@ -4,6 +4,7 @@
 #include <functional>
 #include <list>
 #include <utility>
+#include <mutex>
 
 #include "sst.h"
 
@@ -51,8 +52,6 @@ class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
         using evolver = std::function<pred (const SST&, int) >;
         using evolve_trig = std::function<void (SST&, int)>;
 
-    public:
-	
 		/** Predicate list for one-time predicates. */
         pred_list one_time_predicates;
 		/** Predicate list for recurrent predicates */
@@ -61,6 +60,32 @@ class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
 		pred_list transition_predicates;
         /** Contains one entry for every predicate in `transition_predicates`, in parallel. */
         list<bool> transition_predicate_states;
+        //SST needs to read these predicate lists directly
+        friend class SST;
+
+        std::recursive_mutex predicate_mutex;
+    public:
+        class pred_handle {
+            bool is_valid;
+            typename pred_list::iterator iter;
+            PredicateType type;
+            friend class Predicates;
+            public:
+            pred_handle() : is_valid(false) {}
+            pred_handle(typename pred_list::iterator iter, PredicateType type) : is_valid{true}, iter{iter}, type{type} {}
+            pred_handle(pred_handle&) = delete;
+            pred_handle(pred_handle&& other) : pred_handle(std::move(other.iter), other.type) {
+                other.is_valid = false;
+            }
+            pred_handle& operator=(pred_handle&) = delete;
+            pred_handle& operator=(pred_handle&& other) {
+                iter = std::move(other.iter);
+                type = other.type;
+                is_valid = true;
+                other.is_valid = false;
+                return *this;
+            }
+        };
 
         std::vector<std::unique_ptr<std::pair<pred, int> > > evolving_preds;
 
@@ -69,7 +94,9 @@ class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
         std::vector<std::list<evolve_trig> > evolving_triggers;
 
         /** Inserts a single (predicate, trigger) pair to the appropriate predicate list. */
-        void insert(pred predicate, trig trigger, PredicateType type = PredicateType::ONE_TIME);
+        pred_handle insert(pred predicate, trig trigger, PredicateType type = PredicateType::ONE_TIME);
+
+        void remove(pred_handle& pred);
 
         /** Inserts a single (name, predicate, evolve) to the appropriate predicate list. */
         void insert(NameEnum name, pred predicate, evolver evolve, std::list<evolve_trig> triggers);
@@ -90,24 +117,29 @@ class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
  * PredicateType::ONE_TIME
  */
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
-void SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::insert(pred predicate, trig trigger, PredicateType type) {
+auto SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::insert(pred predicate, trig trigger, PredicateType type) -> pred_handle {
+    std::lock_guard<std::recursive_mutex> lock(predicate_mutex);
     list<trig> g_list;
     g_list.push_back(trigger);
     if (type == PredicateType::ONE_TIME) {
         one_time_predicates.push_back(
                 pair<pred, list<trig>>(predicate, g_list));
+        return pred_handle(--one_time_predicates.end(), type);
     } else if (type == PredicateType::RECURRENT) {
         recurrent_predicates.push_back(
                 pair<pred, list<trig>>(predicate, g_list));
+        return pred_handle(--recurrent_predicates.end(), type);
     } else {
         transition_predicates.push_back(
                 pair<pred, list<trig>>(predicate, g_list));
         transition_predicate_states.push_back(false);
+        return pred_handle(--transition_predicates.end(), type);
     }
 }
 
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::insert(NameEnum name, pred predicate, evolver evolve, std::list<evolve_trig> triggers) {
+    std::lock_guard<std::recursive_mutex> lock(predicate_mutex);
 	constexpr int min = std::tuple_size<SST::named_functions_t>::value;
 	int index = static_cast<int>(name) - min;
 	assert(index >= 0);
@@ -125,11 +157,29 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::insert(NameEnum name, 
 
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::add_triggers(NameEnum name, std::list<evolve_trig> triggers) {
+    std::lock_guard<std::recursive_mutex> lock(predicate_mutex);
 	constexpr int min = std::tuple_size<SST::named_functions_t>::value;
 	int index = static_cast<int>(name) - min;
 	assert(index >= 0);
 	assert(index < evolving_preds.size());
 	evolving_triggers[index].insert(evolving_triggers[index].end(),triggers.begin(),triggers.end());
+}
+
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+void SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::remove(pred_handle& handle) {
+    std::lock_guard<std::recursive_mutex> lock(predicate_mutex);
+    if(!handle.is_valid) {
+        return;
+    }
+    if(handle.type == PredicateType::ONE_TIME) {
+        one_time_predicates.erase(handle.iter);
+    } else if(handle.type == PredicateType::RECURRENT) {
+        recurrent_predicates.erase(handle.iter);
+    } else if(handle.type == PredicateType::TRANSITION) {
+
+        transition_predicates.erase(handle.iter);
+    }
+    handle.is_valid = false;
 }
 
 } /* namespace sst */
