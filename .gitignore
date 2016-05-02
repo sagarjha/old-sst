@@ -47,3 +47,4 @@ routing/router_experiment
 /script_copy.sh
 /script_copy.sh~
 /libsst.so
+/experiments/test_failure_handling

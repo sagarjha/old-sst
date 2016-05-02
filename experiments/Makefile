@@ -102,5 +102,8 @@ token_passing : token_passing.cpp $(src) $(hdr) $(sst_hdr)
 named_predicate_test : named_predicate_test.cpp $(src) $(hdr) $(sst_hdr)
 	c++ -std=c++14 named_predicate_test.cpp $(src) -o named_predicate_test $(options)
 
+test_failure_handling : test_failure_handling.cpp $(src) $(hdr) $(sst_hdr)
+	c++ -std=c++14 test_failure_handling.cpp $(src) -o test_failure_handling $(options)
+
 clean :
 	rm -f $(binaries) *~
