@@ -156,7 +156,7 @@ namespace sst {
   /**
    * This transitions the queue pair to the init state.
    */
-  void resources::modify_qp_to_init() {
+  void resources::set_qp_initialized() {
     struct ibv_qp_attr attr;
     int flags;
     int rc;
@@ -175,7 +175,7 @@ namespace sst {
     check_for_error(!rc, "Failed to modify queue pair to init state, error code is " + std::to_string(rc));
   }
 
-  void resources::modify_qp_to_rtr() {
+  void resources::set_qp_ready_to_receive() {
     struct ibv_qp_attr attr;
     int flags, rc;
     memset(&attr, 0, sizeof(attr));
@@ -209,13 +209,13 @@ namespace sst {
     check_for_error(!rc, "Failed to modify queue pair to ready-to-receive state, error code is " + std::to_string(rc));
   }
 
-  void resources::modify_qp_to_rts() {
+  void resources::set_qp_ready_to_send() {
     struct ibv_qp_attr attr;
     int flags, rc;
     memset(&attr, 0, sizeof(attr));
     // set the state to ready to send
     attr.qp_state = IBV_QPS_RTS;
-    attr.timeout = 0x12;
+    attr.timeout = 4; //The timeout is 4.096x2^(timeout) microseconds
     attr.retry_cnt = 6;
     attr.rnr_retry = 0;
     attr.sq_psn = 0;
@@ -271,13 +271,13 @@ namespace sst {
     remote_props = remote_con_data;
 
     // modify the QP to init
-    modify_qp_to_init();
+    set_qp_initialized();
 
     // modify the QP to RTR
-    modify_qp_to_rtr();
+    set_qp_ready_to_receive();
 
     // modify it to RTS
-    modify_qp_to_rts();
+    set_qp_ready_to_send();
 
     // sync to make sure that both sides are in states that they can connect to prevent packet loss 
     // just send a dummy char back and forth

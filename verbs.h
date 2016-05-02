@@ -32,11 +32,11 @@ namespace sst {
   class resources {
   private:
     /** Initializes the queue pair. */
-    void modify_qp_to_init();
+    void set_qp_initialized();
     /** Transitions the queue pair to the ready-to-receive state. */
-    void modify_qp_to_rtr();
+    void set_qp_ready_to_receive();
     /** Transitions the queue pair to the ready-to-send state. */
-    void modify_qp_to_rts();
+    void set_qp_ready_to_send();
     /** Connect the queue pairs. */
     void connect_qp();
     /** Post a remote RDMA operation. */
