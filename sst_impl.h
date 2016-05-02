@@ -102,11 +102,15 @@ SST<Row, ImplMode, NameEnum, RowExtras>::~SST() {
 }
 
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
-void SST<Row, ImplMode, NameEnum, RowExtras>::disable_all_predicates() {
-    thread_shutdown = true;
-    for (auto& thread : background_threads) {
-        thread.join();
-    }
+void SST<Row, ImplMode, NameEnum, RowExtras>::delete_all_predicates() {
+    std::lock_guard<std::recursive_mutex> lock(predicates.predicate_mutex);
+    predicates.one_time_predicates.clear();
+    predicates.recurrent_predicates.clear();
+    predicates.transition_predicates.clear();
+    predicates.transition_predicate_states.clear();
+    predicates.evolving_preds.clear();
+    predicates.evolving_triggers.clear();
+    predicates.evolvers.clear();
 }
 
 /** 

@@ -31,13 +31,8 @@ template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 class SST;
 
 /**
- * Predicates container for SST. The template parameters must match the SST for
- * which the predicates are being used.
- *
- * @tparam Row The type of the structure that will be used for each row in
- * the SST
- * @tparam Mode A {@link Mode} enum value indicating whether the SST is in
- * Reads mode or Writes mode
+ * Predicates container for SST. Declared as a member oF SST so it can inherit
+ * SST's template parameters.
  */
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
@@ -65,6 +60,10 @@ class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
 
         std::recursive_mutex predicate_mutex;
     public:
+        /**
+         * An opaque handle for a predicate registered with the Predicates class.
+         * Can be used (only once) to delete the predicate it refers to. Move-only.
+         */
         class pred_handle {
             bool is_valid;
             typename pred_list::iterator iter;
@@ -96,6 +95,7 @@ class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
         /** Inserts a single (predicate, trigger) pair to the appropriate predicate list. */
         pred_handle insert(pred predicate, trig trigger, PredicateType type = PredicateType::ONE_TIME);
 
+        /** Removes a (predicate, trigger) pair previously registered with insert(). */
         void remove(pred_handle& pred);
 
         /** Inserts a single (name, predicate, evolve) to the appropriate predicate list. */
