@@ -52,8 +52,8 @@ void check_for_error (T var, string msg) {
 }
 
 namespace sst {
-  /** Completion Queue poll timeout in millisec (2 seconds) */
-  const int MAX_POLL_CQ_TIMEOUT = 2000;
+  /** Completion Queue poll timeout in millisec */
+  const int MAX_POLL_CQ_TIMEOUT = 20;
   /** IB device name. */
   const char *dev_name = NULL;
   /** Local IB port to work with. */
