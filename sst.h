@@ -6,13 +6,14 @@
 #include <list>
 #include <map>
 #include <memory>
-#include <thread>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
 #include <thread>
 #include <atomic>
+#include <mutex>
+#include <condition_variable>
 
 #include "util.h"
 #include "verbs.h"
@@ -141,6 +142,12 @@ class SST {
         vector<thread> background_threads;
         /** A flag to signal background threads to shut down; set to true during destructor calls. */
         std::atomic<bool> thread_shutdown;
+		/** Indicates whether the predicate evaluation thread should start. Initialized to false. */
+		bool thread_start;
+		/** Mutex for thread_start_cv. */
+		std::mutex thread_start_mutex;
+		/** Notified when the predicate evaluation thread should start. */
+		std::condition_variable thread_start_cv;
 
         /** Base case for the recursive constructor_helper with no template parameters. */
         template<int index>
@@ -191,10 +198,9 @@ class SST {
          * @param _members A vector of node ranks (IDs), each of which represents a
          * node participating in the SST. The order of nodes in this vector is the
          * order in which their rows will appear in the SST.
-         * @param _node_rank The node rank of the local node, i.e. the one on which
+         * @param my_node_id The node rank of the local node, i.e. the one on which
          * this code is running.
          */
-
         SST(const vector<uint32_t> &_members, uint32_t my_node_id, failure_upcall_t failure_upcall=nullptr) :
                 SST(_members, my_node_id, std::pair<std::tuple<>, std::vector<row_predicate_updater_t> > { }, failure_upcall) {
         }
@@ -223,6 +229,8 @@ class SST {
 		SST(const vector<uint32_t> &_members, uint32_t my_node_id, std::pair<decltype(named_functions), std::vector<row_predicate_updater_t> >, failure_upcall_t _failure_upcall=nullptr);
 		SST(const SST&) = delete;
         virtual ~SST();
+		/** Starts the predicate evaluation loop. */
+		void start_predicate_evaluation();
         /** Accesses a local or remote row. */
         volatile InternalRow & get(unsigned int index);
         /** Read-only access to a local or remote row, for use in const contexts. */

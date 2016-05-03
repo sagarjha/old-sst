@@ -21,7 +21,7 @@ SST<Row, ImplMode, NameEnum, RowExtras>::SST(const vector<uint32_t> &_members, u
         named_functions(row_preds.first), members(_members.size()), num_members(_members.size()),
         table(new InternalRow[_members.size()]), row_is_frozen(_members.size(), false), failure_upcall(_failure_upcall),
         row_predicate_updater_functions(row_preds.second), res_vec(num_members), background_threads(),
-        thread_shutdown(false), predicates(*(new Predicates())){
+        thread_shutdown(false), thread_start(false), predicates(*(new Predicates())){
 
     // copy members and figure out the member_index
     for (uint32_t i = 0; i < num_members; ++i) {
@@ -113,6 +113,17 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::delete_all_predicates() {
     predicates.evolvers.clear();
 }
 
+/**
+ * This simply unblocks the background thread that runs the predicate evaluation
+ * loop. It must be called at some point after the the constructor in order for
+ * any registered predicates to trigger.
+ */
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+void SST<Row, ImplMode, NameEnum, RowExtras>::start_predicate_evaluation() {
+	std::lock_guard<std::mutex> lock(thread_start_mutex);
+	thread_start = true;
+	thread_start_cv.notify_all();
+}
 /** 
  * Although a mutable reference is returned, only the local row should be 
  * modified through this function. Modifications to remote rows will not be 
@@ -286,7 +297,10 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::read() {
  */
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
-    try {
+	if(!thread_start) {
+		std::unique_lock<std::mutex> lock(thread_start_mutex);
+		thread_start_cv.wait(lock, [this](){return thread_start;});
+	}
     while (!thread_shutdown) {
         //Take the predicate lock before reading the predicate lists
         std::lock_guard<std::recursive_mutex> lock(predicates.predicate_mutex);
@@ -387,10 +401,6 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
 
 
     cout << "Predicate detection thread shutting down" << endl;
-    } catch (const std::exception& e) {
-        cout << "Predicate detection thread had an exception: " << e.what() << endl;
-        throw e;
-    }
 }
 
 /**
