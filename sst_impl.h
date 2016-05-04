@@ -17,11 +17,11 @@ namespace sst {
 
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 SST<Row, ImplMode, NameEnum, RowExtras>::SST(const vector<uint32_t> &_members, uint32_t my_node_id,
-        std::pair<decltype(named_functions), std::vector<row_predicate_updater_t> > row_preds, failure_upcall_t _failure_upcall) :
+					     std::pair<decltype(named_functions), std::vector<row_predicate_updater_t> > row_preds, failure_upcall_t _failure_upcall, bool start_predicate_thread) :
         named_functions(row_preds.first), members(_members.size()), num_members(_members.size()),
         table(new InternalRow[_members.size()]), row_is_frozen(_members.size(), false), failure_upcall(_failure_upcall),
         row_predicate_updater_functions(row_preds.second), res_vec(num_members), background_threads(),
-        thread_shutdown(false), thread_start(false), predicates(*(new Predicates())){
+  thread_shutdown(false), thread_start(start_predicate_thread), predicates(*(new Predicates())){
 
     // copy members and figure out the member_index
     for (uint32_t i = 0; i < num_members; ++i) {

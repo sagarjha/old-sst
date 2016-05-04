@@ -72,7 +72,7 @@ int main (int argc, char** argv) {
 
 	// Get the values of R to test from the other arguments
 	vector<int> row_counts(argc - 2);
-	for(size_t i = 0; i < argc-2; ++i) {
+	for(int i = 0; i < argc-2; ++i) {
 		row_counts[i] = std::stoi(string(argv[i+2]));
 	}
 
@@ -84,7 +84,7 @@ int main (int argc, char** argv) {
 
 	// make all the nodes members of a group
 	vector <uint32_t> group_members (num_nodes);
-	for (uint32_t i = 0; i < num_nodes; ++i) {
+	for (int i = 0; i < num_nodes; ++i) {
 		group_members[i] = i;
 	}
 

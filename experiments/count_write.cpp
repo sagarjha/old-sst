@@ -38,7 +38,7 @@ int main () {
 
   // input the ip addresses
   map <uint32_t, string> ip_addrs;
-  for (int i = 0; i < num_nodes; ++i) {
+  for (unsigned int i = 0; i < num_nodes; ++i) {
     cin >> ip_addrs[i];
   }
 
@@ -66,14 +66,14 @@ int main () {
   // wait till all a's are 0
   while (if_exit == false) {
     if_exit = true;
-    for (int i = 0; i < num_nodes; ++i) {
+    for (unsigned int i = 0; i < num_nodes; ++i) {
       if ((*sst)[i].a != 0) {
 	if_exit = false;
       }
     }
   }
 
-  for (int i = 0; i < num_nodes; ++i) {
+  for (unsigned int i = 0; i < num_nodes; ++i) {
     if (i == node_rank) {
       continue;
     }
@@ -84,7 +84,7 @@ int main () {
 
   // the predicate
   auto f = [num_nodes] (const SST<TestRow, Mode::Writes> & sst) {
-      for (int i = 0; i < num_nodes; ++i) {
+      for (unsigned int i = 0; i < num_nodes; ++i) {
           if (sst[i].a < sst[LOCAL].a) {
               return false;
           }

@@ -66,7 +66,7 @@ int main () {
   // wait till all a's are 0
   while (if_exit == false) {
     if_exit = true;
-    for (int i = 0; i < num_nodes; ++i) {
+    for (unsigned int i = 0; i < num_nodes; ++i) {
       if ((*sst)[i].a != 0) {
 	if_exit = false;
       }

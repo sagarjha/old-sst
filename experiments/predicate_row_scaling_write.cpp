@@ -29,12 +29,6 @@ struct TestRow {
   volatile int data;
 };
 
-namespace sst {
-namespace tcp {
-extern int port;
-}
-}
-
 static uint32_t num_nodes, this_node_rank;
 static const int EXPERIMENT_TRIALS = 10000;
 
@@ -61,16 +55,15 @@ int main (int argc, char** argv) {
 	ifstream node_config_stream;
 	node_config_stream.open (argv[1]);
 
+	cout << "BEWARE!!! node rank must be given before num nodes as input" << endl;
 	// input number of nodes and the local node id
-	node_config_stream >> num_nodes >> this_node_rank;
+	node_config_stream >> this_node_rank >> num_nodes;
 
 	// input the ip addresses
 	map <uint32_t, string> ip_addrs;
-	for (int i = 0; i < num_nodes; ++i) {
+	for (unsigned int i = 0; i < num_nodes; ++i) {
 		node_config_stream >> ip_addrs[i];
 	}
-
-	node_config_stream >> tcp::port;
 
 	node_config_stream.close();
 
@@ -98,14 +91,14 @@ int main (int argc, char** argv) {
 	sst.put();
 
 	//Run the experiment for each value of R
-	for(int r : row_counts) {
+	for(unsigned int r : row_counts) {
 
 		if(this_node_rank == 0) {
 			cout << "Starting experiment for r=" << r << endl;
 			vector<long long int> start_times(EXPERIMENT_TRIALS);
 			vector<long long int> end_times(EXPERIMENT_TRIALS);
 			auto experiment_pred = [r](const SST<TestRow>& sst) {
-				for(int n = 0; n <= r; ++n) {
+				for(unsigned int n = 0; n <= r; ++n) {
 					if(sst[n].data == 0) {
 						return false;
 					}
@@ -116,6 +109,8 @@ int main (int argc, char** argv) {
 			std::mt19937 engine;
 			for(int trial = 0; trial < EXPERIMENT_TRIALS; ++trial) {
 
+			  cout << "Trial number " << trial << endl;
+			  
 				auto done_action = [&end_times, trial](SST<TestRow>& sst) {
 					end_times[trial] = experiments::get_realtime_clock();
 					sst[sst.get_local_index()].data = 0;

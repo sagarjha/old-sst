@@ -59,7 +59,7 @@ int main (int argc, char** argv) {
 
 	// input the ip addresses
 	map <uint32_t, string> ip_addrs;
-	for (int i = 0; i < num_nodes; ++i) {
+	for (unsigned int i = 0; i < num_nodes; ++i) {
 		node_config_stream >> ip_addrs[i];
 	}
 
@@ -88,7 +88,7 @@ int main (int argc, char** argv) {
 	bool done = false;
 	while (!done) {
 		done = true;
-		for (int i = 0; i < num_nodes; ++i) {
+		for (unsigned int i = 0; i < num_nodes; ++i) {
 			if ((*sst)[i].avg_response_time != 100.0) {
 				done = false;
 			}
@@ -100,7 +100,7 @@ int main (int argc, char** argv) {
 
 	auto detect_load = [](const SST<Load_Row, Mode::Writes>& sst) {
 		double sum = 0;
-		for(int n = 0; n < num_nodes; ++n) {
+		for(unsigned int n = 0; n < num_nodes; ++n) {
 			sum += sst[n].avg_response_time;
 		}
 		return sum / num_nodes > RESPONSE_TIME_THRESHOLD;
@@ -122,7 +122,7 @@ int main (int argc, char** argv) {
 		int current_barrier_value = 1;
 		auto barrier_pred = [&current_barrier_value] (const SST<Load_Row, Mode::Writes>& sst) {
 			//Since node 0 is the master node, start checking at 1
-			for (int n = 1; n < num_nodes; ++n) {
+			for (unsigned int n = 1; n < num_nodes; ++n) {
 				if(sst[n].barrier < current_barrier_value)
 					return false;
 			}

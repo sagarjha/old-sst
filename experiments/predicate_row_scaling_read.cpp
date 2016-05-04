@@ -65,7 +65,7 @@ int main (int argc, char** argv) {
 
 	// input the ip addresses
 	map <uint32_t, string> ip_addrs;
-	for (int i = 0; i < num_nodes; ++i) {
+	for (unsigned int i = 0; i < num_nodes; ++i) {
 		node_config_stream >> ip_addrs[i];
 	}
 
@@ -96,14 +96,14 @@ int main (int argc, char** argv) {
 	sst[local].data = 0;
 
 	//Run the experiment for each value of R
-	for(int r : row_counts) {
+	for(unsigned int r : row_counts) {
 
 		if(this_node_rank == 0) {
 			cout << "Starting experiment for r=" << r << endl;
 			vector<long long int> start_times(EXPERIMENT_TRIALS);
 			vector<long long int> end_times(EXPERIMENT_TRIALS);
 			auto experiment_pred = [r](const SST<TestRow, Mode::Reads>& sst) {
-				for(int n = 0; n <= r; ++n) {
+				for(unsigned int n = 0; n <= r; ++n) {
 					if(sst[n].data == 0) {
 						return false;
 					}
