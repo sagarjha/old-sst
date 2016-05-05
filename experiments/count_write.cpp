@@ -25,25 +25,17 @@ struct TestRow {
   int a;
 };
 
-namespace sst {
-namespace tcp {
-extern int port;
-}
-}
-
 int main () {
   // input number of nodes and the local node id
   uint32_t num_nodes, node_rank;
-  cin >> num_nodes >> node_rank;
+  cout << "BEWARE!!! Node Rank is taken before Num Nodes" << endl;
+  cin >> node_rank >> num_nodes;
 
   // input the ip addresses
   map <uint32_t, string> ip_addrs;
   for (unsigned int i = 0; i < num_nodes; ++i) {
     cin >> ip_addrs[i];
   }
-
-  // Should have been done earlier. LOL.
-  cin >> tcp::port;
 
   // initialize tcp connections
   tcp_initialize(node_rank, ip_addrs);

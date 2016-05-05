@@ -109,7 +109,7 @@ int main (int argc, char** argv) {
 			std::mt19937 engine;
 			for(int trial = 0; trial < EXPERIMENT_TRIALS; ++trial) {
 
-			  cout << "Trial number " << trial << endl;
+			  // cout << "Trial number " << trial << endl;
 			  
 				auto done_action = [&end_times, trial](SST<TestRow>& sst) {
 					end_times[trial] = experiments::get_realtime_clock();

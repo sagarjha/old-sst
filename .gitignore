@@ -48,3 +48,4 @@ routing/router_experiment
 /script_copy.sh~
 /libsst.so
 /experiments/test_failure_handling
+/experiments/count_write_script.sh
