@@ -327,21 +327,29 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
         }
 
         // one time predicates need to be evaluated only until they become true
-        auto pred_it = predicates.one_time_predicates.begin();
-        while (pred_it != predicates.one_time_predicates.end()) {
-            if ((*pred_it != nullptr) && (*pred_it)->first(*this) == true) {
-                for (auto func : (*pred_it)->second) {
-                    func(*this);
-                }
-                // erase the predicate as it was just found to be true
-                pred_it = predicates.one_time_predicates.erase(pred_it);
-            } else {
-                pred_it++;
-            }
-        }
+	for (auto&& pred : predicates.one_time_predicates) {
+	  if (pred && (pred->first(*this) == true)) {
+	    for (auto func : pred->second) {
+	      func(*this);
+	    }
+	    pred.reset();
+	  }
+	}
+        // auto pred_it = predicates.one_time_predicates.begin();
+        // while (pred_it != predicates.one_time_predicates.end()) {
+        //     if ((*pred_it != nullptr) && (*pred_it)->first(*this) == true) {
+        //         for (auto func : (*pred_it)->second) {
+        //             func(*this);
+        //         }
+        //         // erase the predicate as it was just found to be true
+        //         pred_it = predicates.one_time_predicates.erase(pred_it);
+        //     } else {
+        //         pred_it++;
+        //     }
+        // }
 
         // recurrent predicates are evaluated each time they are found to be true
-        for (pred_it = predicates.recurrent_predicates.begin(); pred_it != predicates.recurrent_predicates.end(); ++pred_it) {
+        for (auto pred_it = predicates.recurrent_predicates.begin(); pred_it != predicates.recurrent_predicates.end(); ++pred_it) {
             if ((*pred_it != nullptr) && (*pred_it)->first(*this) == true) {
                 for (auto func : (*pred_it)->second) {
                     func(*this);
@@ -350,7 +358,7 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
         }
 
         // transition predicates are only evaluated when they change from false to true
-        pred_it = predicates.transition_predicates.begin();
+        auto pred_it = predicates.transition_predicates.begin();
         auto pred_state_it = predicates.transition_predicate_states.begin();
         while (pred_it != predicates.transition_predicates.end()) {
             if(*pred_it != nullptr) {
