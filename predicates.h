@@ -10,9 +10,6 @@
 
 namespace sst {
 
-using std::function;
-using std::list;
-using std::pair;
 
 /** Enumeration defining the kinds of predicates an SST can handle. */
 enum class PredicateType {
@@ -37,12 +34,12 @@ class SST;
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
         /** Type definition for a predicate: a boolean function that takes an SST as input. */
-        using pred = function<bool(const SST&)>;
+        using pred = std::function<bool(const SST&)>;
         /** Type definition for a trigger: a void function that takes an SST as input. */
-        using trig = function<void(SST&)>;
+        using trig = std::function<void(SST&)>;
         /** Type definition for a list of predicates, where each predicate is 
          * paired with a list of callbacks */
-        using pred_list = list<std::unique_ptr<pair<pred, list<trig>>>>;
+        using pred_list = std::list<std::unique_ptr<std::pair<pred, std::list<trig>>>>;
 
         using evolver = std::function<pred (const SST&, int) >;
         using evolve_trig = std::function<void (SST&, int)>;
@@ -54,7 +51,7 @@ class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
 		/** Predicate list for transition predicates */
 		pred_list transition_predicates;
         /** Contains one entry for every predicate in `transition_predicates`, in parallel. */
-        list<bool> transition_predicate_states;
+        std::list<bool> transition_predicate_states;
         //SST needs to read these predicate lists directly
         friend class SST;
 
@@ -119,19 +116,19 @@ class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 auto SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::insert(pred predicate, trig trigger, PredicateType type) -> pred_handle {
     std::lock_guard<std::recursive_mutex> lock(predicate_mutex);
-    list<trig> g_list;
+    std::list<trig> g_list;
     g_list.push_back(trigger);
     if (type == PredicateType::ONE_TIME) {
         one_time_predicates.push_back(
-                std::make_unique<pair<pred, list<trig>>>(predicate, g_list));
+                std::make_unique<std::pair<pred, list<trig>>>(predicate, g_list));
         return pred_handle(--one_time_predicates.end(), type);
     } else if (type == PredicateType::RECURRENT) {
         recurrent_predicates.push_back(
-                std::make_unique<pair<pred, list<trig>>>(predicate, g_list));
+                std::make_unique<std::pair<pred, list<trig>>>(predicate, g_list));
         return pred_handle(--recurrent_predicates.end(), type);
     } else {
         transition_predicates.push_back(
-                std::make_unique<pair<pred, list<trig>>>(predicate, g_list));
+                std::make_unique<std::pair<pred, list<trig>>>(predicate, g_list));
         transition_predicate_states.push_back(false);
         return pred_handle(--transition_predicates.end(), type);
     }

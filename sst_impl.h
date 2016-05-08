@@ -316,7 +316,7 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
                     //take predicate out of list
                     auto pred_pair = std::move(predicates.evolving_preds[i]);
                     //evaluate triggers on predicate
-                    for (auto &trig : predicates.evolving_triggers.at(i)) {
+                    for (auto& trig : predicates.evolving_triggers.at(i)) {
                         trig(*this, pred_pair->second);
                     }
                     //evolve predicate
@@ -327,37 +327,28 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
         }
 
         // one time predicates need to be evaluated only until they become true
-	for (auto&& pred : predicates.one_time_predicates) {
-	  if (pred && (pred->first(*this) == true)) {
-	    for (auto func : pred->second) {
-	      func(*this);
-	    }
-	    pred.reset();
-	  }
-	}
-        // auto pred_it = predicates.one_time_predicates.begin();
-        // while (pred_it != predicates.one_time_predicates.end()) {
-        //     if ((*pred_it != nullptr) && (*pred_it)->first(*this) == true) {
-        //         for (auto func : (*pred_it)->second) {
-        //             func(*this);
-        //         }
-        //         // erase the predicate as it was just found to be true
-        //         pred_it = predicates.one_time_predicates.erase(pred_it);
-        //     } else {
-        //         pred_it++;
-        //     }
-        // }
-
-        // recurrent predicates are evaluated each time they are found to be true
-        for (auto pred_it = predicates.recurrent_predicates.begin(); pred_it != predicates.recurrent_predicates.end(); ++pred_it) {
-            if ((*pred_it != nullptr) && (*pred_it)->first(*this) == true) {
-                for (auto func : (*pred_it)->second) {
+        for (auto& pred : predicates.one_time_predicates) {
+            if (pred != nullptr && (pred->first(*this) == true)) {
+                for (auto& func : pred->second) {
                     func(*this);
                 }
+                // erase the predicate as it was just found to be true
+                pred.reset();
+            }
+        }
+
+        // recurrent predicates are evaluated each time they are found to be true
+        for (auto& pred : predicates.recurrent_predicates) {
+            if (pred != nullptr && (pred->first(*this) == true)) {
+                for (auto& func : pred->second) {
+                    func(*this);
+                }
+                pred.reset();
             }
         }
 
         // transition predicates are only evaluated when they change from false to true
+        // We need to use iterators here because we need to iterate over two lists in parallel
         auto pred_it = predicates.transition_predicates.begin();
         auto pred_state_it = predicates.transition_predicate_states.begin();
         while (pred_it != predicates.transition_predicates.end()) {
@@ -376,34 +367,35 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
             }
         }
 
-        //clean up deleted predicates
-        pred_it = predicates.one_time_predicates.begin();
-        while (pred_it != predicates.one_time_predicates.end()) {
-            if(*pred_it == nullptr) {
-                pred_it = predicates.one_time_predicates.erase(pred_it);
-            } else {
-                pred_it++;
-            }
-        }
-        pred_it = predicates.recurrent_predicates.begin();
-        while (pred_it != predicates.recurrent_predicates.end()) {
-            if(*pred_it == nullptr) {
-                pred_it = predicates.recurrent_predicates.erase(pred_it);
-            } else {
-                pred_it++;
-            }
-        }
-        pred_it = predicates.transition_predicates.begin();
-        pred_state_it = predicates.transition_predicate_states.begin();
-        while (pred_it != predicates.transition_predicates.end()) {
-            if(*pred_it == nullptr) {
-                pred_it = predicates.transition_predicates.erase(pred_it);
-                pred_state_it = predicates.transition_predicate_states.erase(pred_state_it);
-            } else {
-                pred_it++;
-                pred_state_it++;
-            }
-        }
+        //TODO: clean up deleted predicates
+        //The code below doesn't work, because the user might be holding a handle to a one-time predicate that we just deleted
+//        pred_it = predicates.one_time_predicates.begin();
+//        while (pred_it != predicates.one_time_predicates.end()) {
+//            if(*pred_it == nullptr) {
+//                pred_it = predicates.one_time_predicates.erase(pred_it);
+//            } else {
+//                pred_it++;
+//            }
+//        }
+//        pred_it = predicates.recurrent_predicates.begin();
+//        while (pred_it != predicates.recurrent_predicates.end()) {
+//            if(*pred_it == nullptr) {
+//                pred_it = predicates.recurrent_predicates.erase(pred_it);
+//            } else {
+//                pred_it++;
+//            }
+//        }
+//        pred_it = predicates.transition_predicates.begin();
+//        pred_state_it = predicates.transition_predicate_states.begin();
+//        while (pred_it != predicates.transition_predicates.end()) {
+//            if(*pred_it == nullptr) {
+//                pred_it = predicates.transition_predicates.erase(pred_it);
+//                pred_state_it = predicates.transition_predicate_states.erase(pred_state_it);
+//            } else {
+//                pred_it++;
+//                pred_state_it++;
+//            }
+//        }
     }
 
 
