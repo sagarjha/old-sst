@@ -343,7 +343,6 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
                 for (auto& func : pred->second) {
                     func(*this);
                 }
-                pred.reset();
             }
         }
 
@@ -431,6 +430,7 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::put() {
             } else if (result == -1) {
                 int index = qp_num_to_index[qp_num];
                 if (!row_is_frozen[index]) {
+                    cout << "Poll completion error in QP " << qp_num << ". Freezing row " << index << endl;
                     freeze(index);
                     return;
                 }
@@ -440,6 +440,7 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::put() {
                     if (index == member_index || row_is_frozen[index] || polled_successfully[index] == true) {
                         continue;
                     }
+                    cout << "Reporting failure on row " << index << " even though it didn't fail directly" << endl;
                     freeze(index);
                     return;
                 }

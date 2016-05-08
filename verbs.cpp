@@ -53,13 +53,15 @@ void check_for_error (T var, string msg) {
 
 namespace sst {
   /** Completion Queue poll timeout in millisec */
-  const int MAX_POLL_CQ_TIMEOUT = 20;
+  const int MAX_POLL_CQ_TIMEOUT = 30;
   /** IB device name. */
   const char *dev_name = NULL;
   /** Local IB port to work with. */
   int ib_port = 1;
   /** GID index to use. */
   int gid_idx = 0;
+
+//  unsigned int max_time_to_completion = 0;
 
   /** Structure containing global system resources. */
   struct global_resources {
@@ -121,8 +123,8 @@ namespace sst {
     // allow a lot of requests at a time
     qp_init_attr.cap.max_send_wr = 10;
     qp_init_attr.cap.max_recv_wr = 10;
-    qp_init_attr.cap.max_send_sge = 10;
-    qp_init_attr.cap.max_recv_sge = 10;
+    qp_init_attr.cap.max_send_sge = 1;
+    qp_init_attr.cap.max_recv_sge = 1;
     // create the queue pair
     qp = ibv_create_qp(g_res->pd, &qp_init_attr);
 
@@ -186,7 +188,7 @@ namespace sst {
     attr.dest_qp_num = remote_props.qp_num;
     attr.rq_psn = 0;
     attr.max_dest_rd_atomic = 1;
-    attr.min_rnr_timer = 0x12;
+    attr.min_rnr_timer = 4;
     attr.ah_attr.is_global = 0;
     // set the local id of the remote side
     attr.ah_attr.dlid = remote_props.lid;
@@ -216,8 +218,8 @@ namespace sst {
     // set the state to ready to send
     attr.qp_state = IBV_QPS_RTS;
     attr.timeout = 4; //The timeout is 4.096x2^(timeout) microseconds
-    attr.retry_cnt = 6;
-    attr.rnr_retry = 0;
+    attr.retry_cnt = 1;
+    attr.rnr_retry = 1;
     attr.sq_psn = 0;
     attr.max_rd_atomic = 1;
     flags = IBV_QP_STATE | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY
@@ -382,6 +384,16 @@ namespace sst {
       gettimeofday(&cur_time, NULL);
       cur_time_msec = (cur_time.tv_sec * 1000) + (cur_time.tv_usec / 1000);
     } while ((poll_result == 0) && ((cur_time_msec - start_time_msec) < MAX_POLL_CQ_TIMEOUT));
+//
+//     gettimeofday(&cur_time, NULL);
+//     cur_time_msec = (cur_time.tv_sec * 1000) + (cur_time.tv_usec / 1000);
+//     unsigned long time_to_completion = cur_time_msec - start_time_msec;
+//     if(time_to_completion > 1)
+//         cout << "Poll completion time: " << time_to_completion << endl;
+//     if (time_to_completion > max_time_to_completion) {
+//         max_time_to_completion = time_to_completion;
+//         cout << "New maximum completion time: " << max_time_to_completion << endl;
+//     }
 
     // not sure what to do when we cannot read entries off the CQ
     // this means that something is wrong with the local node
