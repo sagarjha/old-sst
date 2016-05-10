@@ -53,7 +53,7 @@ void check_for_error (T var, string msg) {
 
 namespace sst {
   /** Completion Queue poll timeout in millisec */
-  const int MAX_POLL_CQ_TIMEOUT = 30;
+  const int MAX_POLL_CQ_TIMEOUT = 2000;
   /** IB device name. */
   const char *dev_name = NULL;
   /** Local IB port to work with. */
@@ -188,7 +188,7 @@ namespace sst {
     attr.dest_qp_num = remote_props.qp_num;
     attr.rq_psn = 0;
     attr.max_dest_rd_atomic = 1;
-    attr.min_rnr_timer = 4;
+    attr.min_rnr_timer = 0x12;
     attr.ah_attr.is_global = 0;
     // set the local id of the remote side
     attr.ah_attr.dlid = remote_props.lid;
@@ -218,8 +218,8 @@ namespace sst {
     // set the state to ready to send
     attr.qp_state = IBV_QPS_RTS;
     attr.timeout = 4; //The timeout is 4.096x2^(timeout) microseconds
-    attr.retry_cnt = 1;
-    attr.rnr_retry = 1;
+    attr.retry_cnt = 6;
+    attr.rnr_retry = 0;
     attr.sq_psn = 0;
     attr.max_rd_atomic = 1;
     flags = IBV_QP_STATE | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY
