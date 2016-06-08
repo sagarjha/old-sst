@@ -21,7 +21,7 @@ struct TestRow {
 int main () {
   // input number of nodes and the local node id
   uint32_t num_nodes, node_rank;
-  cin >> num_nodes >> node_rank;
+  cin >> node_rank >> num_nodes;
 
   // input the ip addresses
   std::map <uint32_t, std::string> ip_addrs;
