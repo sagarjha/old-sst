@@ -142,7 +142,7 @@ class SST {
         vector<thread> background_threads;
         /** A flag to signal background threads to shut down; set to true during destructor calls. */
         std::atomic<bool> thread_shutdown;
-		/** Indicates whether the predicate evaluation thread should start. Initialized to false. */
+		/** Indicates whether the predicate evaluation thread should start after being forked in the constructor. */
 		bool thread_start;
 		/** Mutex for thread_start_cv. */
 		std::mutex thread_start_mutex;
@@ -202,7 +202,7 @@ class SST {
          * this code is running.
          */
   SST(const vector<uint32_t> &_members, uint32_t my_node_id, failure_upcall_t failure_upcall=nullptr, bool start_predicate_thread=true) :
-                SST(_members, my_node_id, std::pair<std::tuple<>, std::vector<row_predicate_updater_t> > { }, failure_upcall) {
+                SST(_members, my_node_id, std::pair<std::tuple<>, std::vector<row_predicate_updater_t> > { }, failure_upcall, start_predicate_thread) {
         }
 
         template<typename ExtensionList, typename ... RestFunctions>
