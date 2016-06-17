@@ -5,6 +5,7 @@
 #include <list>
 #include <utility>
 #include <mutex>
+#include <algorithm>
 
 #include "sst.h"
 
