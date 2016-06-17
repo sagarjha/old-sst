@@ -120,10 +120,10 @@ template<typename F, typename... TupleMembers>
     for_each_hlpr<0>(f,t1);
 }
 
-	template<typename T>
-	std::unique_ptr<T> heap_copy(const T& t){
-		return std::make_unique<T>(t);
-	}
+template<typename T>
+std::unique_ptr<T> heap_copy(const T& t) {
+    return std::make_unique<T>(t);
+}
 
 }
 }

@@ -20,8 +20,9 @@ SST<Row, ImplMode, NameEnum, RowExtras>::SST(const vector<uint32_t> &_members, u
 					     std::pair<decltype(named_functions), std::vector<row_predicate_updater_t> > row_preds, failure_upcall_t _failure_upcall, bool start_predicate_thread) :
         named_functions(row_preds.first), members(_members.size()), num_members(_members.size()),
         table(new InternalRow[_members.size()]), row_is_frozen(_members.size(), false), failure_upcall(_failure_upcall),
-        row_predicate_updater_functions(row_preds.second), res_vec(num_members), background_threads(),
-  thread_shutdown(false), thread_start(start_predicate_thread), predicates(*(new Predicates())){
+        row_predicate_updater_functions(row_preds.second),
+        res_vec(num_members), background_threads(), thread_shutdown(false),
+        thread_start(start_predicate_thread), predicates(*(new Predicates())) {
 
     // copy members and figure out the member_index
     for (uint32_t i = 0; i < num_members; ++i) {
@@ -97,19 +98,13 @@ SST<Row, ImplMode, NameEnum, RowExtras>::~SST() {
         if(thread.joinable())
             thread.join();
     }
+    //Even though predicates is a reference, we actually created it with an unmanaged new
     delete &predicates;
 }
 
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::delete_all_predicates() {
-    std::lock_guard<std::recursive_mutex> lock(predicates.predicate_mutex);
-    predicates.one_time_predicates.clear();
-    predicates.recurrent_predicates.clear();
-    predicates.transition_predicates.clear();
-    predicates.transition_predicate_states.clear();
-    predicates.evolving_preds.clear();
-    predicates.evolving_triggers.clear();
-    predicates.evolvers.clear();
+    predicates.clear();
 }
 
 /**
@@ -302,7 +297,7 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
 	}
     while (!thread_shutdown) {
         //Take the predicate lock before reading the predicate lists
-        std::lock_guard<std::recursive_mutex> lock(predicates.predicate_mutex);
+        std::unique_lock<std::mutex> predicates_lock(predicates.predicate_mutex);
 
         //update intermediate results for Row Predicates
         for (auto &f : row_predicate_updater_functions) {
@@ -329,9 +324,12 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
         // one time predicates need to be evaluated only until they become true
         for (auto& pred : predicates.one_time_predicates) {
             if (pred != nullptr && (pred->first(*this) == true)) {
-                for (auto& func : pred->second) {
-                    func(*this);
-                }
+                //Copy the trigger pointer locally, so it can continue running without segfaulting
+                //even if this predicate gets deleted when we unlock predicates_lock
+                std::shared_ptr<typename Predicates::trig> trigger(pred->second);
+                predicates_lock.unlock();
+                (*trigger)(*this);
+                predicates_lock.lock();
                 // erase the predicate as it was just found to be true
                 pred.reset();
             }
@@ -340,9 +338,10 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
         // recurrent predicates are evaluated each time they are found to be true
         for (auto& pred : predicates.recurrent_predicates) {
             if (pred != nullptr && (pred->first(*this) == true)) {
-                for (auto& func : pred->second) {
-                    func(*this);
-                }
+                std::shared_ptr<typename Predicates::trig> trigger(pred->second);
+                predicates_lock.unlock();
+                (*trigger)(*this);
+                predicates_lock.lock();
             }
         }
 
@@ -355,9 +354,10 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
                 //*pred_state_it is the previous state of the predicate at *pred_it
                 bool curr_pred_state = (*pred_it)->first(*this);
                 if (curr_pred_state == true && *pred_state_it == false) {
-                    for (auto func : (*pred_it)->second) {
-                        func(*this);
-                    }
+                    std::shared_ptr<typename Predicates::trig> trigger((*pred_it)->second);
+                    predicates_lock.unlock();
+                    (*trigger)(*this);
+                    predicates_lock.lock();
                 }
                 *pred_state_it = curr_pred_state;
 
@@ -395,6 +395,7 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
 //                pred_state_it++;
 //            }
 //        }
+
     }
 
 

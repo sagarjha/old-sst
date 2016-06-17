@@ -130,12 +130,11 @@ class SST {
         std::vector<bool> row_is_frozen;
         /** The number of rows that have been frozen. */
         int num_frozen{0};
-        // failure upcall
+        /** The function to call when a remote node appears to have failed. */
         failure_upcall_t failure_upcall;
         /** List of functions needed to update row predicates */
         using row_predicate_updater_t = std::function<void (SST&)>;
         const std::vector<row_predicate_updater_t> row_predicate_updater_functions; //should be of size NamedPredicatesTypePack::num_updater_functions:::value
-
         /** RDMA resources vector, one for each member. */
         vector<unique_ptr<resources>> res_vec;
         /** Holds references to background threads, so that we can shut them down during destruction. */
@@ -201,19 +200,19 @@ class SST {
          * @param my_node_id The node rank of the local node, i.e. the one on which
          * this code is running.
          */
-  SST(const vector<uint32_t> &_members, uint32_t my_node_id, failure_upcall_t failure_upcall=nullptr, bool start_predicate_thread=true) :
-                SST(_members, my_node_id, std::pair<std::tuple<>, std::vector<row_predicate_updater_t> > { }, failure_upcall, start_predicate_thread) {
+        SST(const vector<uint32_t> &_members, uint32_t my_node_id, failure_upcall_t failure_upcall=nullptr, bool start_predicate_thread=true) :
+            SST(_members, my_node_id, std::pair<std::tuple<>, std::vector<row_predicate_updater_t> > { }, failure_upcall, start_predicate_thread) {
         }
 
         template<typename ExtensionList, typename ... RestFunctions>
         SST(const vector<uint32_t> &_members, uint32_t my_node_id, failure_upcall_t failure_upcall, bool start_predicate_thread, const PredicateBuilder<Row,  ExtensionList> &pb, RestFunctions ... named_funs) :
-	  SST(_members, my_node_id, constructor_helper<0>(pb, named_funs...), failure_upcall, start_predicate_thread) {
+        SST(_members, my_node_id, constructor_helper<0>(pb, named_funs...), failure_upcall, start_predicate_thread) {
 
         }
 
-		template<typename ExtensionList, typename ... RestFunctions>
+        template<typename ExtensionList, typename ... RestFunctions>
         SST(const vector<uint32_t> &_members, uint32_t my_node_id, const PredicateBuilder<Row,  ExtensionList> &pb, RestFunctions ... named_funs) :
-	  SST(_members, my_node_id, constructor_helper<0>(pb, named_funs...), nullptr, true) {
+        SST(_members, my_node_id, constructor_helper<0>(pb, named_funs...), nullptr, true) {
 
         }
 
@@ -226,7 +225,7 @@ class SST {
          * @param _node_rank The node rank of the local node, i.e. the one on which
          * this code is running.
          */
-  SST(const vector<uint32_t> &_members, uint32_t my_node_id, std::pair<decltype(named_functions), std::vector<row_predicate_updater_t> >, failure_upcall_t _failure_upcall=nullptr, bool start_predicate_thread=true);
+		SST(const vector<uint32_t> &_members, uint32_t my_node_id, std::pair<decltype(named_functions), std::vector<row_predicate_updater_t> >, failure_upcall_t _failure_upcall=nullptr, bool start_predicate_thread=true);
 		SST(const SST&) = delete;
         virtual ~SST();
 		/** Starts the predicate evaluation loop. */

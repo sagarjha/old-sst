@@ -38,8 +38,8 @@ class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
         /** Type definition for a trigger: a void function that takes an SST as input. */
         using trig = std::function<void(SST&)>;
         /** Type definition for a list of predicates, where each predicate is 
-         * paired with a list of callbacks */
-        using pred_list = std::list<std::unique_ptr<std::pair<pred, std::list<trig>>>>;
+         * paired with a callback, held by pointer (to enable cheap copying) */
+        using pred_list = std::list<std::unique_ptr<std::pair<pred, std::shared_ptr<trig>>>>;
 
         using evolver = std::function<pred (const SST&, int) >;
         using evolve_trig = std::function<void (SST&, int)>;
@@ -55,7 +55,7 @@ class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
         //SST needs to read these predicate lists directly
         friend class SST;
 
-        std::recursive_mutex predicate_mutex;
+        std::mutex predicate_mutex;
     public:
         /**
          * An opaque handle for a predicate registered with the Predicates class.
@@ -92,6 +92,14 @@ class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
         /** Inserts a single (predicate, trigger) pair to the appropriate predicate list. */
         pred_handle insert(pred predicate, trig trigger, PredicateType type = PredicateType::ONE_TIME);
 
+        /** Inserts a predicate with a list of triggers (which will be run in sequence) to the appropriate predicate list. */
+        pred_handle insert(pred predicate, const std::list<trig>& triggers, PredicateType type = PredicateType::ONE_TIME) {
+            return insert(predicate, [triggers](SST& sst){
+                for(const auto& trigger : triggers)
+                    trigger(sst);
+            }, type);
+        }
+
         /** Removes a (predicate, trigger) pair previously registered with insert(). */
         void remove(pred_handle& pred);
 
@@ -99,6 +107,9 @@ class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
         void insert(NameEnum name, pred predicate, evolver evolve, std::list<evolve_trig> triggers);
 
         void add_triggers(NameEnum name, std::list<evolve_trig> triggers);
+
+        /** Deletes all predicates, including evolvers and their triggers. */
+        void clear();
 
 };
 
@@ -115,20 +126,18 @@ class SST<Row, ImplMode, NameEnum, RowExtras>::Predicates {
  */
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 auto SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::insert(pred predicate, trig trigger, PredicateType type) -> pred_handle {
-    std::lock_guard<std::recursive_mutex> lock(predicate_mutex);
-    std::list<trig> g_list;
-    g_list.push_back(trigger);
+    std::lock_guard<std::mutex> lock(predicate_mutex);
     if (type == PredicateType::ONE_TIME) {
         one_time_predicates.push_back(
-                std::make_unique<std::pair<pred, list<trig>>>(predicate, g_list));
+                std::make_unique<std::pair<pred, std::shared_ptr<trig>>>(predicate, std::make_shared<trig>(trigger)));
         return pred_handle(--one_time_predicates.end(), type);
     } else if (type == PredicateType::RECURRENT) {
         recurrent_predicates.push_back(
-                std::make_unique<std::pair<pred, list<trig>>>(predicate, g_list));
+                std::make_unique<std::pair<pred, std::shared_ptr<trig>>>(predicate, std::make_shared<trig>(trigger)));
         return pred_handle(--recurrent_predicates.end(), type);
     } else {
         transition_predicates.push_back(
-                std::make_unique<std::pair<pred, list<trig>>>(predicate, g_list));
+                std::make_unique<std::pair<pred, std::shared_ptr<trig>>>(predicate, std::make_shared<trig>(trigger)));
         transition_predicate_states.push_back(false);
         return pred_handle(--transition_predicates.end(), type);
     }
@@ -136,7 +145,7 @@ auto SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::insert(pred predicate,
 
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::insert(NameEnum name, pred predicate, evolver evolve, std::list<evolve_trig> triggers) {
-    std::lock_guard<std::recursive_mutex> lock(predicate_mutex);
+    std::lock_guard<std::mutex> lock(predicate_mutex);
 	constexpr int min = std::tuple_size<SST::named_functions_t>::value;
 	int index = static_cast<int>(name) - min;
 	assert(index >= 0);
@@ -154,7 +163,7 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::insert(NameEnum name, 
 
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::add_triggers(NameEnum name, std::list<evolve_trig> triggers) {
-    std::lock_guard<std::recursive_mutex> lock(predicate_mutex);
+    std::lock_guard<std::mutex> lock(predicate_mutex);
 	constexpr int min = std::tuple_size<SST::named_functions_t>::value;
 	int index = static_cast<int>(name) - min;
 	assert(index >= 0);
@@ -164,7 +173,7 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::add_triggers(NameEnum 
 
 template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::remove(pred_handle& handle) {
-    std::lock_guard<std::recursive_mutex> lock(predicate_mutex);
+    std::lock_guard<std::mutex> lock(predicate_mutex);
     if(!handle.is_valid) {
         return;
     }
@@ -177,6 +186,18 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::remove(pred_handle& ha
 //        transition_predicates.erase(handle.iter);
 //    }
     handle.is_valid = false;
+}
+
+template<class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+void SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::clear() {
+    std::lock_guard<std::mutex> lock(predicate_mutex);
+    using ptr_to_pred = std::unique_ptr<std::pair<pred, std::shared_ptr<trig>>>;
+    std::for_each(one_time_predicates.begin(), one_time_predicates.end(), [](ptr_to_pred& ptr){ ptr.reset(); });
+    std::for_each(recurrent_predicates.begin(), recurrent_predicates.end(), [](ptr_to_pred& ptr){ ptr.reset(); });
+    std::for_each(transition_predicates.begin(), transition_predicates.end(), [](ptr_to_pred& ptr){ ptr.reset(); });
+    evolving_preds.clear();
+    evolving_triggers.clear();
+    evolvers.clear();
 }
 
 } /* namespace sst */
