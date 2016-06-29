@@ -179,13 +179,6 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::Predicates::remove(pred_handle& ha
         return;
     }
     handle.iter->reset();
-//    if(handle.type == PredicateType::ONE_TIME) {
-//    } else if(handle.type == PredicateType::RECURRENT) {
-//        recurrent_predicates.erase(handle.iter);
-//    } else if(handle.type == PredicateType::TRANSITION) {
-//
-//        transition_predicates.erase(handle.iter);
-//    }
     handle.is_valid = false;
 }
 
