@@ -245,42 +245,40 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::sync_with_members() const {
  */
 template <class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::refresh_table() {
-    if(ImplMode == Mode::Reads) {
-        for(unsigned int index = 0; index < num_members; ++index) {
-            // don't read own row or a frozen row
-            if(index == member_index || row_is_frozen[index]) {
-                continue;
-            }
-            // perform a remote RDMA read on the owner of the row
-            res_vec[index]->post_remote_read(sizeof(table[0]));
+    assert(ImplMode == Mode::Reads);
+    for(unsigned int index = 0; index < num_members; ++index) {
+        // don't read own row or a frozen row
+        if(index == member_index || row_is_frozen[index]) {
+            continue;
         }
-        // track which nodes haven't failed yet
-        vector<bool> polled_successfully(num_members, false);
-        // poll for one less than number of rows
-        for(unsigned int index = 0; index < num_members - num_frozen - 1;
-            ++index) {
-            // poll for completion
-            auto p = verbs_poll_completion();
-            int qp_num = p.first;
-            int result = p.second;
-            if(result == 1) {
-                polled_successfully[qp_num_to_index[qp_num]] = true;
-            } else if(result == -1) {
-                int index = qp_num_to_index[qp_num];
-                if(!row_is_frozen[index]) {
-                    freeze(index);
-                    return;
+        // perform a remote RDMA read on the owner of the row
+        res_vec[index]->post_remote_read(sizeof(table[0]));
+    }
+    // track which nodes haven't failed yet
+    vector<bool> polled_successfully(num_members, false);
+    // poll for one less than number of rows
+    for(unsigned int index = 0; index < num_members - num_frozen - 1; ++index) {
+        // poll for completion
+        auto p = verbs_poll_completion();
+        int qp_num = p.first;
+        int result = p.second;
+        if(result == 1) {
+            polled_successfully[qp_num_to_index[qp_num]] = true;
+        } else if(result == -1) {
+            int index = qp_num_to_index[qp_num];
+            if(!row_is_frozen[index]) {
+                freeze(index);
+                return;
+            }
+        } else if(result == 0) {
+            // find some node that hasn't been polled yet and report it
+            for(unsigned int index = 0; index < num_members; ++index) {
+                if(index == member_index || row_is_frozen[index] ||
+                   polled_successfully[index] == true) {
+                    continue;
                 }
-            } else if(result == 0) {
-                // find some node that hasn't been polled yet and report it
-                for(unsigned int index = 0; index < num_members; ++index) {
-                    if(index == member_index || row_is_frozen[index] ||
-                       polled_successfully[index] == true) {
-                        continue;
-                    }
-                    freeze(index);
-                    return;
-                }
+                freeze(index);
+                return;
             }
         }
     }
@@ -449,56 +447,14 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
  */
 template <class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::put() {
-    if(ImplMode == Mode::Writes) {
-        for(unsigned int index = 0; index < num_members; ++index) {
-            // don't write to yourself or a frozen row
-            if(index == member_index || row_is_frozen[index]) {
-                continue;
-            }
-            // perform a remote RDMA write on the owner of the row
-            res_vec[index]->post_remote_write(sizeof(table[0]));
-        }
-        // track which nodes haven't failed yet
-        vector<bool> polled_successfully(num_members, false);
-        // poll for one less than number of rows
-        for(unsigned int index = 0; index < num_members - num_frozen - 1;
-            ++index) {
-            // poll for completion
-            auto p = verbs_poll_completion();
-            int qp_num = p.first;
-            int result = p.second;
-            if(result == 1) {
-                polled_successfully[qp_num_to_index[qp_num]] = true;
-            } else if(result == -1) {
-                int index = qp_num_to_index[qp_num];
-                if(!row_is_frozen[index]) {
-                    cout << "Poll completion error in QP " << qp_num
-                         << ". Freezing row " << index << endl;
-                    freeze(index);
-                    return;
-                }
-            } else if(result == 0) {
-                // find some node that hasn't been polled yet and report it
-                for(unsigned int index = 0; index < num_members; ++index) {
-                    if(index == member_index || row_is_frozen[index] ||
-                       polled_successfully[index] == true) {
-                        continue;
-                    }
-                    cout << "Reporting failure on row " << index
-                         << " even though it didn't fail directly" << endl;
-                    freeze(index);
-                    return;
-                }
-            }
-        }
-    }
+  put(0, sizeof(table[0]));
 }
 
 /**
  * This can be used to write only a single state variable to the remote nodes,
  * instead of the enitre row, if only that variable has changed. To get the
  * correct offset and size, use `offsetof` and `sizeof`. For example, if the
- * Row type is `RowType` and the variable to write is `RowType::item`, use
+ * Row type is `RowType` and the variable to write is RowType::item, use
  *
  *     sst_instance.put(offsetof(RowType, item), sizeof(item));
  *
@@ -511,42 +467,44 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::put() {
 template <class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::put(long long int offset,
                                                   long long int size) {
-    if(ImplMode == Mode::Writes) {
-        for(unsigned int index = 0; index < num_members; ++index) {
-            // don't write to yourself or a frozen row
-            if(index == member_index || row_is_frozen[index]) {
-                continue;
-            }
-            // perform a remote RDMA write on the owner of the row
-            res_vec[index]->post_remote_write(offset, size);
+    assert(ImplMode == Mode::Writes);
+    for(unsigned int index = 0; index < num_members; ++index) {
+        // don't write to yourself or a frozen row
+        if(index == member_index || row_is_frozen[index]) {
+            continue;
         }
-        // track which nodes haven't failed yet
-        vector<bool> polled_successfully(num_members, false);
-        // poll for one less than number of rows
-        for(unsigned int index = 0; index < num_members - num_frozen - 1;
-            ++index) {
-            // poll for completion
-            auto p = verbs_poll_completion();
-            int qp_num = p.first;
-            int result = p.second;
-            if(result == 1) {
-                polled_successfully[qp_num_to_index[qp_num]] = true;
-            } else if(result == -1) {
-                int index = qp_num_to_index[qp_num];
-                if(!row_is_frozen[index]) {
-                    freeze(index);
-                    return;
+        // perform a remote RDMA write on the owner of the row
+        res_vec[index]->post_remote_write(offset, size);
+    }
+    // track which nodes haven't failed yet
+    vector<bool> polled_successfully(num_members, false);
+    // poll for surviving number of rows
+    for(unsigned int index = 0; index < num_members - num_frozen - 1; ++index) {
+        // poll for completion
+        auto p = verbs_poll_completion();
+        int qp_num = p.first;
+        int result = p.second;
+        if(result == 1) {
+            polled_successfully[qp_num_to_index[qp_num]] = true;
+        } else if(result == -1) {
+            int index = qp_num_to_index[qp_num];
+            if(!row_is_frozen[index]) {
+                cout << "Poll completion error in QP " << qp_num
+                     << ". Freezing row " << index << endl;
+                freeze(index);
+                return;
+            }
+        } else if(result == 0) {
+            // find some node that hasn't been polled yet and report it
+            for(unsigned int index = 0; index < num_members; ++index) {
+                if(index == member_index || row_is_frozen[index] ||
+                   polled_successfully[index] == true) {
+                    continue;
                 }
-            } else if(result == 0) {
-                // find some node that hasn't been polled yet and report it
-                for(unsigned int index = 0; index < num_members; ++index) {
-                    if(index == member_index || row_is_frozen[index] ||
-                       polled_successfully[index] == true) {
-                        continue;
-                    }
-                    freeze(index);
-                    return;
-                }
+                cout << "Reporting failure on row " << index
+                     << " even though it didn't fail directly" << endl;
+                freeze(index);
+                return;
             }
         }
     }
