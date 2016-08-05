@@ -166,6 +166,9 @@ private:
     /** Notified when the predicate evaluation thread should start. */
     std::condition_variable thread_start_cv;
 
+    // mutex for put
+    std::mutex freeze_mutex;
+
     /** Base case for the recursive constructor_helper with no template
      * parameters. */
     template <int index>
@@ -235,26 +238,27 @@ public:
      * this code is running.
      */
     SST(const vector<uint32_t> &_members, uint32_t my_node_id,
-        failure_upcall_t failure_upcall = nullptr,
+        failure_upcall_t failure_upcall = nullptr, std::vector<bool> already_failed = {},
         bool start_predicate_thread = true)
         : SST(_members, my_node_id,
               std::pair<std::tuple<>, std::vector<row_predicate_updater_t>>{},
-              failure_upcall, start_predicate_thread) {}
+              failure_upcall, already_failed, start_predicate_thread) {}
 
     template <typename ExtensionList, typename... RestFunctions>
     SST(const vector<uint32_t> &_members, uint32_t my_node_id,
         failure_upcall_t failure_upcall, bool start_predicate_thread,
+        std::vector<bool> already_failed,
         const PredicateBuilder<Row, ExtensionList> &pb,
         RestFunctions... named_funs)
         : SST(_members, my_node_id, constructor_helper<0>(pb, named_funs...),
-              failure_upcall, start_predicate_thread) {}
+              failure_upcall, already_failed, start_predicate_thread) {}
 
     template <typename ExtensionList, typename... RestFunctions>
     SST(const vector<uint32_t> &_members, uint32_t my_node_id,
         const PredicateBuilder<Row, ExtensionList> &pb,
         RestFunctions... named_funs)
         : SST(_members, my_node_id, constructor_helper<0>(pb, named_funs...),
-              nullptr, true) {}
+              nullptr, {}, true) {}
 
     /**
      * Delegate constructor to construct an SST instance without named
@@ -269,6 +273,7 @@ public:
         std::pair<decltype(named_functions),
                   std::vector<row_predicate_updater_t>>,
         failure_upcall_t _failure_upcall = nullptr,
+        std::vector<bool> already_failed = {},
         bool start_predicate_thread = true);
     SST(const SST &) = delete;
     virtual ~SST();

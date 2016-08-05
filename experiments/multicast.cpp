@@ -18,10 +18,10 @@ template<uint window_size, uint max_msg_size>
 class group {
   struct Message {
     char buf[max_msg_size];
-    
+    uint seq;
   };
   struct DataRow {
-    char buf[window_size][max_msg_size];
+    Message slots[window_size];
   };
 
   struct controlRow {

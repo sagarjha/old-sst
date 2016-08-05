@@ -20,12 +20,12 @@ SST<Row, ImplMode, NameEnum, RowExtras>::SST(
     const vector<uint32_t> &_members, uint32_t my_node_id,
     std::pair<decltype(named_functions), std::vector<row_predicate_updater_t>>
         row_preds,
-    failure_upcall_t _failure_upcall, bool start_predicate_thread)
+    failure_upcall_t _failure_upcall, std::vector<bool> already_failed,
+    bool start_predicate_thread)
     : named_functions(row_preds.first),
       members(_members.size()),
       num_members(_members.size()),
       table(new InternalRow[_members.size()]),
-      row_is_frozen(_members.size(), false),
       failure_upcall(_failure_upcall),
       row_predicate_updater_functions(row_preds.second),
       res_vec(num_members),
@@ -41,61 +41,111 @@ SST<Row, ImplMode, NameEnum, RowExtras>::SST(
         }
     }
 
+    if (already_failed.size()) {
+      assert(already_failed.size() == num_members);
+      row_is_frozen = already_failed;
+    }
+    else {
+      row_is_frozen.resize(num_members, false);
+    }
+
     // sort members descending by node rank, while keeping track of their
     // specified index in the SST
     for(unsigned int sst_index = 0; sst_index < num_members; ++sst_index) {
         members_by_rank[members[sst_index]] = sst_index;
     }
 
-    // Static dispatch of implementation code based on the template parameter
-    if(ImplMode == Mode::Reads) {
-        // initialize each element of res_vec
-        unsigned int node_rank, sst_index;
-        for(auto const &rank_index : members_by_rank) {
-            std::tie(node_rank, sst_index) = rank_index;
-            if(sst_index != member_index) {
-                // exchange lkey and addr of the table via tcp for enabling rdma
-                // reads
-                res_vec[sst_index] = std::make_unique<resources>(
-                    node_rank, (char *)&(table[member_index]),
-                    (char *)&(table[sst_index]), sizeof(table[0]),
-                    sizeof(table[0]));
-                // update qp_num_to_index
-                qp_num_to_index[res_vec[sst_index].get()->qp->qp_num] =
-                    sst_index;
-            }
+    // initialize each element of res_vec
+    unsigned int node_rank, sst_index;
+    for(auto const &rank_index : members_by_rank) {
+        std::tie(node_rank, sst_index) = rank_index;
+        char *write_addr, *read_addr;
+        if(ImplMode == Mode::Reads) {
+            write_addr = (char *)&(table[member_index]);
+            read_addr = (char *)&(table[sst_index]);
+        } else {
+            write_addr = (char *)&(table[sst_index]);
+            read_addr = (char *)&(table[member_index]);
         }
+        int size = sizeof(table[0]);
+        if(sst_index != member_index) {
+            if(row_is_frozen[sst_index]) {
+                continue;
+            }
+            // exchange lkey and addr of the table via tcp for enabling rdma
+            // reads
+            res_vec[sst_index] = std::make_unique<resources>(
+                node_rank, write_addr, read_addr, size, size);
+            // update qp_num_to_index
+            qp_num_to_index[res_vec[sst_index].get()->qp->qp_num] = sst_index;
+        }
+    }
 
+    if(ImplMode == Mode::Reads) {
         // create the reader and the detector thread
         thread reader(&SST::read, this);
-        thread detector(&SST::detect, this);
         background_threads.push_back(std::move(reader));
-        background_threads.push_back(std::move(detector));
-
-        cout << "Initialized SST and Started Threads" << endl;
-    } else {
-        // initialize each element of res_vec
-        unsigned int node_rank, sst_index;
-        for(auto const &rank_index : members_by_rank) {
-            std::tie(node_rank, sst_index) = rank_index;
-            if(sst_index != member_index) {
-                // exchange lkey and addr of the table via tcp for enabling rdma
-                // writes
-                res_vec[sst_index] = std::make_unique<resources>(
-                    node_rank, (char *)&(table[sst_index]),
-                    (char *)&(table[member_index]), sizeof(table[0]),
-                    sizeof(table[0]));
-                // update qp_num_to_index
-                qp_num_to_index[res_vec[sst_index].get()->qp->qp_num] =
-                    sst_index;
-            }
-        }
-
-        thread detector(&SST::detect, this);
-        background_threads.push_back(std::move(detector));
-
-        cout << "Initialized SST and Started Threads" << endl;
     }
+    thread detector(&SST::detect, this);
+    background_threads.push_back(std::move(detector));
+
+    cout << "Initialized SST and Started Threads" << endl;
+    // // Static dispatch of implementation code based on the template parameter
+    //     if(ImplMode == Mode::Reads) {
+    //         // initialize each element of res_vec
+    //         unsigned int node_rank, sst_index;
+    //         for(auto const &rank_index : members_by_rank) {
+    //             std::tie(node_rank, sst_index) = rank_index;
+    //             if(sst_index != member_index) {
+    //                 if(row_is_frozen[sst_index]) {
+    //                     continue;
+    //                 }
+    //                 // exchange lkey and addr of the table via tcp for
+    //                 enabling rdma
+    //                 // reads
+    //                 res_vec[sst_index] = std::make_unique<resources>(
+    //                     node_rank, (char *)&(table[member_index]),
+    //                     (char *)&(table[sst_index]), sizeof(table[0]),
+    //                     sizeof(table[0]));
+    //                 // update qp_num_to_index
+    //                 qp_num_to_index[res_vec[sst_index].get()->qp->qp_num] =
+    //                     sst_index;
+    //             }
+    //         }
+
+//         // create the reader and the detector thread
+//         thread reader(&SST::read, this);
+//         thread detector(&SST::detect, this);
+//         background_threads.push_back(std::move(reader));
+//         background_threads.push_back(std::move(detector));
+
+//         cout << "Initialized SST and Started Threads" << endl;
+//     } else {
+//         // initialize each element of res_vec
+//         unsigned int node_rank, sst_index;
+//         for(auto const &rank_index : members_by_rank) {
+//             std::tie(node_rank, sst_index) = rank_index;
+//             if(sst_index != member_index) {
+//                 if(row_is_frozen[sst_index]) {
+//                     continue;
+//                 }
+//                 // exchange lkey and addr of the table via tcp for enabling rdma
+//                 // writes
+//                 res_vec[sst_index] = std::make_unique<resources>(
+//                     node_rank, (char *)&(table[sst_index]),
+//                     (char *)&(table[member_index]), sizeof(table[0]),
+//                     sizeof(table[0]));
+//                 // update qp_num_to_index
+//                 qp_num_to_index[res_vec[sst_index].get()->qp->qp_num] =
+//                     sst_index;
+//             }
+//         }
+
+//         thread detector(&SST::detect, this);
+//         background_threads.push_back(std::move(detector));
+
+//         cout << "Initialized SST and Started Threads" << endl;
+//     }
 }
 
 /**
@@ -216,7 +266,13 @@ SST<Row, ImplMode, NameEnum, RowExtras>::get_snapshot() const {
 
 template <class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::freeze(int index) {
-    row_is_frozen[index] = true;
+    {
+        std::lock_guard<std::mutex> lock(freeze_mutex);
+        if(row_is_frozen[index]) {
+            return;
+        }
+        row_is_frozen[index] = true;
+    }
     num_frozen++;
     res_vec[index].reset();
     failure_upcall(members[index]);
@@ -468,6 +524,8 @@ template <class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::put(long long int offset,
                                                   long long int size) {
     assert(ImplMode == Mode::Writes);
+    vector<bool> posted_write_to(num_members, false);
+    uint num_writes_posted = 0;
     for(unsigned int index = 0; index < num_members; ++index) {
         // don't write to yourself or a frozen row
         if(index == member_index || row_is_frozen[index]) {
@@ -475,17 +533,21 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::put(long long int offset,
         }
         // perform a remote RDMA write on the owner of the row
         res_vec[index]->post_remote_write(offset, size);
+	posted_write_to[index] = true;
+	num_writes_posted++;
     }
     // track which nodes haven't failed yet
-    vector<bool> polled_successfully(num_members, false);
+    vector<bool> polled_successfully_from(num_members, false);
     // poll for surviving number of rows
-    for(unsigned int index = 0; index < num_members - num_frozen - 1; ++index) {
+    for(unsigned int index = 0; index < num_writes_posted; ++index) {
         // poll for completion
         auto p = verbs_poll_completion();
         int qp_num = p.first;
         int result = p.second;
         if(result == 1) {
-            polled_successfully[qp_num_to_index[qp_num]] = true;
+            int index = qp_num_to_index[qp_num];
+            assert(posted_write_to[index]);
+            polled_successfully_from[index] = true;
         } else if(result == -1) {
             int index = qp_num_to_index[qp_num];
             if(!row_is_frozen[index]) {
@@ -496,14 +558,31 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::put(long long int offset,
             }
         } else if(result == 0) {
             // find some node that hasn't been polled yet and report it
-            for(unsigned int index = 0; index < num_members; ++index) {
-                if(index == member_index || row_is_frozen[index] ||
-                   polled_successfully[index] == true) {
+            for(unsigned int index2 = 0; index2 < num_members; ++index2) {
+                if(!posted_write_to[index2] || polled_successfully_from[index2]) {
                     continue;
                 }
-                cout << "Reporting failure on row " << index
+		// if (index2 != 0) {
+		//   cout << "Number of writes posted = " << remote_writes_posted << endl;
+		//   cout << "num_frozen = " << num_frozen << endl;
+		  
+		//   cout << "Writes posted to " << endl;
+		//   for (auto n : writes_posted_to) {
+		//     cout << n <<  " ";
+		//   }
+		//   cout << endl;
+
+		//   cout << "Polled successfully from " << endl;
+		//   for (uint i = 0; i < num_members; ++i) {
+		//     if (polled_successfully[i]) {
+		//       cout << members[i] << " ";
+		//     }
+		//   }
+		//   cout << endl;
+		// }
+                cout << "Reporting failure on row " << index2
                      << " even though it didn't fail directly" << endl;
-                freeze(index);
+                freeze(index2);
                 return;
             }
         }
