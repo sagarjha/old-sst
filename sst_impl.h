@@ -290,7 +290,7 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::sync_with_members() const {
     unsigned int node_rank, sst_index;
     for(auto const &rank_index : members_by_rank) {
         std::tie(node_rank, sst_index) = rank_index;
-        if(sst_index != member_index) {
+        if(sst_index != member_index && !row_is_frozen[sst_index]) {
             tcp::sync(node_rank);
         }
     }
