@@ -46,20 +46,8 @@ class group {
     // SST
     unique_ptr<SST_type> multicastSST;
 
-public:
-    group(vector<uint> members, uint32_t my_id,
-          receiver_callback_t receiver_callback)
-        : receiver_callback(receiver_callback) {
-        size_t num_members = members.size();
-        for(uint32_t i = 0; i < num_members; ++i) {
-            if(members[i] == my_id) {
-                my_rank = i;
-                break;
-            }
-        }
-        multicastSST = make_unique<SST_type>(members, my_rank);
-
-        auto receiver_pred = [this](SST_type& sst) {
+    void register_predicates() {
+        auto receiver_pred = [this](const SST_type& sst) {
             uint32_t slot = num_received % window_size;
             if(sst[0].slots[slot].seq == num_received / window_size) {
                 return true;
@@ -76,7 +64,7 @@ public:
 
         // only for the sender
         auto update_finished_multicasts_pred =
-            [this](SST_type& sst) { return true; };
+            [this](const SST_type& sst) { return true; };
         auto update_finished_multicasts_trig = [this](SST_type& sst) {
             uint64_t min_multicast_num = sst[0].num_received;
             uint32_t num_members = sst.get_num_rows();
@@ -92,6 +80,21 @@ public:
                                             update_finished_multicasts_trig,
                                             sst::PredicateType::RECURRENT);
         }
+    }
+
+public:
+    group(vector<uint> members, uint32_t my_id,
+          receiver_callback_t receiver_callback)
+        : receiver_callback(receiver_callback) {
+        size_t num_members = members.size();
+        for(uint32_t i = 0; i < num_members; ++i) {
+            if(members[i] == my_id) {
+                my_rank = i;
+                break;
+            }
+        }
+        multicastSST = make_unique<SST_type>(members, my_rank);
+	register_predicates();
     }
 
     char* get_buffer(uint32_t msg_size) {
