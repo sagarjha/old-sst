@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cassert>
 #include <functional>
+#include <map>
 #include <memory>
 #include <vector>
 
@@ -30,8 +31,6 @@ class group {
     uint64_t num_queued = 0;
     // number of messages for which RDMA write is complete
     uint64_t num_sent = 0;
-    // number of messages received
-    uint64_t num_received = 0;
     // the number of messages acknowledged by all the nodes
     uint64_t num_multicasts_finished = 0;
     // rank of the node in the sst
@@ -46,18 +45,32 @@ class group {
     // SST
     unique_ptr<SST_type> multicastSST;
 
+    void initialize() {
+        uint32_t num_members = multicastSST->get_num_rows();
+        for(uint i = 0; i < num_members; ++i) {
+            (*multicastSST)[i].num_received = 0;
+            for(uint j = 0; j < window_size; ++j) {
+                (*multicastSST)[i].slots[j].seq = 0;
+            }
+        }
+	multicastSST->sync_with_members();
+    }
+
     void register_predicates() {
         auto receiver_pred = [this](const SST_type& sst) {
-            uint32_t slot = num_received % window_size;
-            if(sst[0].slots[slot].seq == num_received / window_size) {
+            uint32_t slot = sst[my_rank].num_received % window_size;
+            if(sst[0].slots[slot].seq == sst[my_rank].num_received / window_size) {
                 return true;
             }
             return false;
         };
         auto receiver_trig = [this](SST_type& sst) {
-            uint32_t slot = num_received % window_size;
-            this->receiver_callback(num_received, sst[0].slots[slot].buf);
-            num_received++;
+            uint32_t slot = sst[my_rank].num_received % window_size;
+            this->receiver_callback(sst[my_rank].num_received, sst[0].slots[slot].buf);
+            sst[my_rank].num_received++;
+            sst.put((char*)addressof(sst[0].num_received) -
+                        (char*)addressof(sst[0]),
+                    sizeof(sst[0].num_received));
         };
         multicastSST->predicates.insert(receiver_pred, receiver_trig,
                                         PredicateType::RECURRENT);
@@ -94,10 +107,11 @@ public:
             }
         }
         multicastSST = make_unique<SST_type>(members, my_rank);
+	initialize();
 	register_predicates();
     }
 
-    char* get_buffer(uint32_t msg_size) {
+    volatile char* get_buffer(uint32_t msg_size) {
         lock_guard<mutex> lock(msg_send_mutex);
         assert(my_rank == 0);
         assert(msg_size <= max_msg_size);
@@ -114,10 +128,58 @@ public:
         uint32_t slot = num_sent % window_size;
         num_sent++;
         (*multicastSST)[0].slots[slot].seq++;
-        // multicastSST->put(offsetof(Row<window_size, max_msg_size>, slots) +
-        // slot * sizeof(Message),
-        //          sizeof(Message));
+        multicastSST->put(
+            (char*)addressof((*multicastSST)[0].slots[slot]) -
+	    (char*)addressof((*multicastSST)[0]),
+            sizeof(Message<max_msg_size>));
     }
 };
 
-int main() { group<10, 1000> g({0, 1, 2}, 0, nullptr); }
+int main() {
+    // input number of nodes and the local node id
+    uint32_t node_id, num_nodes;
+    cin >> node_id >> num_nodes;
+
+    // input the ip addresses
+    map<uint32_t, string> ip_addrs;
+    for(unsigned int i = 0; i < num_nodes; ++i) {
+        cin >> ip_addrs[i];
+    }
+
+    // initialize tcp connections
+    tcp::tcp_initialize(node_id, ip_addrs);
+
+    // initialize the rdma resources
+    verbs_initialize();
+
+    vector<uint32_t> members(num_nodes);
+    for(uint i = 0; i < num_nodes; ++i) {
+        members[i] = i;
+    }
+
+    group<10, 1000> g(members, node_id, [](uint64_t index, volatile char* msg) {
+        cout << "Index is: " << index << endl;
+        cout << "Message is: ";
+        for(int i = 0; i < 50; ++i) {
+            cout << msg[i];
+        }
+        cout << endl;
+    });
+    if(node_id == 0) {
+        for(int i = 0; i < 10; ++i) {
+            volatile char* buf;
+            while((buf = g.get_buffer(50)) == NULL) {
+            }
+            for(int i = 0; i < 50; ++i) {
+                buf[i] = 'a' + (i % 26);
+            }
+            // for(int i = 0; i < 50; ++i) {
+            //     cout << buf[i];
+            // }
+            // cout << endl;
+            g.send();
+        }
+    }
+    while(true) {
+    }
+}
