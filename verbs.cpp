@@ -334,7 +334,7 @@ int resources::post_remote_send(long long int offset, long long int size,
     // prepare the scatter/gather entry
     memset(&sge, 0, sizeof(sge));
     // don't care where the read buffer is saved
-    sge.addr = (uintptr_t)(char *)read_buf;
+    sge.addr = (uintptr_t)(read_buf + offset);
     sge.length = size;
     sge.lkey = read_mr->lkey;
     // prepare the send work request

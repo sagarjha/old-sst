@@ -19,8 +19,8 @@ void initialize(int node_rank, const map <uint32_t, string> & ip_addrs) {
 int main () {
   // input number of nodes and the local node id
   int num_nodes, node_rank;
-  cin >> num_nodes;
   cin >> node_rank;
+  cin >> num_nodes;
 
   // input the ip addresses
   map <uint32_t, string> ip_addrs;
@@ -60,6 +60,25 @@ int main () {
 
   cout << "Buffer written by remote side is : " << read_buf << endl;
   
+  for (int i = 0; i < 7; ++i) {
+    write_buf[i] = '5'+node_rank%10;
+  }
+  for (int i = 7; i < 9; ++i) {
+    write_buf[i] = '1'+node_rank%10;
+  }
+  write_buf[9] = 0;
+
+  cout << "write buffer is " << write_buf << endl;
+
+  // remotely write data from the write_buf
+  res->post_remote_write (5, 3);
+  // poll for completion
+  verbs_poll_completion();
+  
+  sock_sync_data(get_socket (r_index), 1, tQ, &temp_char);
+
+  cout << "Buffer written by remote side is : " << read_buf << endl;
+
   // destroy resources
   delete(res);
 

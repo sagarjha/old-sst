@@ -1,5 +1,7 @@
 #include <iostream>
 #include <cassert>
+#include <cstdlib>
+#include <ctime>
 #include <functional>
 #include <map>
 #include <memory>
@@ -11,10 +13,14 @@
 using namespace std;
 using namespace sst;
 
+volatile bool done = false;
+unsigned int num_messages = 10;
+
 template <uint32_t max_msg_size>
 struct Message {
     char buf[max_msg_size];
-    uint64_t seq;
+    uint32_t size;
+    uint64_t next_seq;
 };
 
 template <uint32_t window_size, uint32_t max_msg_size>
@@ -23,7 +29,8 @@ struct Row {
     uint64_t num_received;
 };
 
-typedef function<void(uint64_t, volatile char*)> receiver_callback_t;
+typedef function<void(uint64_t, volatile char*, uint32_t size)>
+    receiver_callback_t;
 
 template <uint32_t window_size, uint32_t max_msg_size>
 class group {
@@ -50,23 +57,28 @@ class group {
         for(uint i = 0; i < num_members; ++i) {
             (*multicastSST)[i].num_received = 0;
             for(uint j = 0; j < window_size; ++j) {
-                (*multicastSST)[i].slots[j].seq = 0;
+                (*multicastSST)[i].slots[j].buf[0] = 0;
+                (*multicastSST)[i].slots[j].next_seq = 0;
             }
         }
-	multicastSST->sync_with_members();
+        multicastSST->sync_with_members();
+        cout << "Initialization complete" << endl;
     }
 
     void register_predicates() {
         auto receiver_pred = [this](const SST_type& sst) {
             uint32_t slot = sst[my_rank].num_received % window_size;
-            if(sst[0].slots[slot].seq == sst[my_rank].num_received / window_size) {
+            if(sst[0].slots[slot].next_seq ==
+               (sst[my_rank].num_received) / window_size + 1) {
                 return true;
             }
             return false;
         };
         auto receiver_trig = [this](SST_type& sst) {
             uint32_t slot = sst[my_rank].num_received % window_size;
-            this->receiver_callback(sst[my_rank].num_received, sst[0].slots[slot].buf);
+            this->receiver_callback(sst[my_rank].num_received,
+                                    sst[0].slots[slot].buf,
+                                    sst[0].slots[slot].size);
             sst[my_rank].num_received++;
             sst.put((char*)addressof(sst[0].num_received) -
                         (char*)addressof(sst[0]),
@@ -87,12 +99,16 @@ class group {
                 }
             }
             num_multicasts_finished = min_multicast_num;
+            if(num_multicasts_finished == num_messages) {
+                done = true;
+            }
         };
         if(my_rank == 0) {
             multicastSST->predicates.insert(update_finished_multicasts_pred,
                                             update_finished_multicasts_trig,
                                             sst::PredicateType::RECURRENT);
         }
+        cout << "Predicates registered" << endl;
     }
 
 public:
@@ -107,8 +123,8 @@ public:
             }
         }
         multicastSST = make_unique<SST_type>(members, my_rank);
-	initialize();
-	register_predicates();
+        initialize();
+        register_predicates();
     }
 
     volatile char* get_buffer(uint32_t msg_size) {
@@ -118,6 +134,8 @@ public:
         if(num_queued - num_multicasts_finished < window_size) {
             uint32_t slot = num_queued % window_size;
             num_queued++;
+            // set size appropriately
+            (*multicastSST)[0].slots[slot].size = msg_size;
             return (*multicastSST)[0].slots[slot].buf;
         }
         return nullptr;
@@ -127,15 +145,15 @@ public:
         assert(my_rank == 0);
         uint32_t slot = num_sent % window_size;
         num_sent++;
-        (*multicastSST)[0].slots[slot].seq++;
-        multicastSST->put(
-            (char*)addressof((*multicastSST)[0].slots[slot]) -
-	    (char*)addressof((*multicastSST)[0]),
-            sizeof(Message<max_msg_size>));
+        (*multicastSST)[0].slots[slot].next_seq++;
+        multicastSST->put((char*)addressof((*multicastSST)[0].slots[slot]) -
+                              (char*)addressof((*multicastSST)[0]),
+                          sizeof(Message<max_msg_size>));
     }
 };
 
 int main() {
+    constexpr uint max_msg_size = 10;
     // input number of nodes and the local node id
     uint32_t node_id, num_nodes;
     cin >> node_id >> num_nodes;
@@ -157,29 +175,32 @@ int main() {
         members[i] = i;
     }
 
-    group<10, 1000> g(members, node_id, [](uint64_t index, volatile char* msg) {
-        cout << "Index is: " << index << endl;
-        cout << "Message is: ";
-        for(int i = 0; i < 50; ++i) {
-            cout << msg[i];
-        }
-        cout << endl;
-    });
+    struct timespec start_time, end_time;
+    group<10, max_msg_size> g(
+        members, node_id,
+        [](uint64_t index, volatile char* msg, uint32_t size) {
+        });
     if(node_id == 0) {
-        for(int i = 0; i < 10; ++i) {
+        // start timer
+        clock_gettime(CLOCK_REALTIME, &start_time);
+        for(uint i = 0; i < num_messages; ++i) {
+            uint32_t size = 1 + (rand() % max_msg_size);
             volatile char* buf;
-            while((buf = g.get_buffer(50)) == NULL) {
+            while((buf = g.get_buffer(size)) == NULL) {
             }
-            for(int i = 0; i < 50; ++i) {
-                buf[i] = 'a' + (i % 26);
+            for(uint i = 0; i < size; ++i) {
+                buf[i] = 'a' + rand() % 26;
             }
-            // for(int i = 0; i < 50; ++i) {
-            //     cout << buf[i];
-            // }
-            // cout << endl;
             g.send();
         }
     }
-    while(true) {
+    while(!done) {
     }
+    // end timer
+    clock_gettime(CLOCK_REALTIME, &end_time);
+    double my_time = ((end_time.tv_sec * 1e9 + end_time.tv_nsec) -
+                      (start_time.tv_sec * 1e9 + start_time.tv_nsec));
+    cout << "Time in nanoseconds " << my_time << endl;
+    cout << "Number of messages per second " << (num_messages * 1e9) / my_time
+         << endl;
 }
