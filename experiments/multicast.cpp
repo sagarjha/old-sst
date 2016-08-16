@@ -1,8 +1,8 @@
-#include <iostream>
 #include <cassert>
 #include <cstdlib>
 #include <ctime>
 #include <functional>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <vector>
@@ -14,7 +14,7 @@ using namespace std;
 using namespace sst;
 
 volatile bool done = false;
-unsigned int num_messages = 10;
+unsigned int num_messages = 1000000;
 
 template <uint32_t max_msg_size>
 struct Message {
@@ -88,8 +88,9 @@ class group {
                                         PredicateType::RECURRENT);
 
         // only for the sender
-        auto update_finished_multicasts_pred =
-            [this](const SST_type& sst) { return true; };
+        auto update_finished_multicasts_pred = [this](const SST_type& sst) {
+            return true;
+        };
         auto update_finished_multicasts_trig = [this](SST_type& sst) {
             uint64_t min_multicast_num = sst[0].num_received;
             uint32_t num_members = sst.get_num_rows();
@@ -104,9 +105,9 @@ class group {
             }
         };
         if(my_rank == 0) {
-            multicastSST->predicates.insert(update_finished_multicasts_pred,
-                                            update_finished_multicasts_trig,
-                                            sst::PredicateType::RECURRENT);
+            // multicastSST->predicates.insert(update_finished_multicasts_pred,
+            //                                 update_finished_multicasts_trig,
+            //                                 sst::PredicateType::RECURRENT);
         }
         cout << "Predicates registered" << endl;
     }
@@ -137,7 +138,17 @@ public:
             // set size appropriately
             (*multicastSST)[0].slots[slot].size = msg_size;
             return (*multicastSST)[0].slots[slot].buf;
+        } else {
+            uint64_t min_multicast_num = (*multicastSST)[0].num_received;
+            uint32_t num_members = (*multicastSST).get_num_rows();
+            for(uint32_t i = 1; i < num_members; ++i) {
+                if((*multicastSST)[i].num_received < min_multicast_num) {
+                    min_multicast_num = (*multicastSST)[i].num_received;
+                }
+            }
+            num_multicasts_finished = min_multicast_num;
         }
+	// cout << (*multicastSST)[0].num_received << " " << (*multicastSST)[1].num_received << endl;
         return nullptr;
     }
 
@@ -153,7 +164,7 @@ public:
 };
 
 int main() {
-    constexpr uint max_msg_size = 10;
+    constexpr uint max_msg_size = 1, window_size = 100000;
     // input number of nodes and the local node id
     uint32_t node_id, num_nodes;
     cin >> node_id >> num_nodes;
@@ -176,23 +187,27 @@ int main() {
     }
 
     struct timespec start_time, end_time;
-    group<10, max_msg_size> g(
+    group<window_size, max_msg_size> g(
         members, node_id,
-        [](uint64_t index, volatile char* msg, uint32_t size) {
-        });
+        [&node_id](uint64_t index, volatile char* msg, uint32_t size) {if (node_id == 0 && index == num_messages-1) {
+            done = true;
+        }});
+    uint count = 0;
     if(node_id == 0) {
         // start timer
         clock_gettime(CLOCK_REALTIME, &start_time);
         for(uint i = 0; i < num_messages; ++i) {
-            uint32_t size = 1 + (rand() % max_msg_size);
+            uint32_t size = max_msg_size;
             volatile char* buf;
             while((buf = g.get_buffer(size)) == NULL) {
+	      ++count;
             }
-            for(uint i = 0; i < size; ++i) {
-                buf[i] = 'a' + rand() % 26;
-            }
+            // for(uint i = 0; i < size; ++i) {
+            //     buf[i] = 'a' + rand() % 26;
+            // }
             g.send();
         }
+	cout << "Done sending" << endl;
     }
     while(!done) {
     }
@@ -203,4 +218,5 @@ int main() {
     cout << "Time in nanoseconds " << my_time << endl;
     cout << "Number of messages per second " << (num_messages * 1e9) / my_time
          << endl;
+    cout << "Number of times null returned, count = " << count << endl;
 }
