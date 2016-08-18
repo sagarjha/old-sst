@@ -90,62 +90,6 @@ SST<Row, ImplMode, NameEnum, RowExtras>::SST(
     background_threads.push_back(std::move(detector));
 
     cout << "Initialized SST and Started Threads" << endl;
-    // // Static dispatch of implementation code based on the template parameter
-    //     if(ImplMode == Mode::Reads) {
-    //         // initialize each element of res_vec
-    //         unsigned int node_rank, sst_index;
-    //         for(auto const &rank_index : members_by_rank) {
-    //             std::tie(node_rank, sst_index) = rank_index;
-    //             if(sst_index != member_index) {
-    //                 if(row_is_frozen[sst_index]) {
-    //                     continue;
-    //                 }
-    //                 // exchange lkey and addr of the table via tcp for
-    //                 enabling rdma
-    //                 // reads
-    //                 res_vec[sst_index] = std::make_unique<resources>(
-    //                     node_rank, (char *)&(table[member_index]),
-    //                     (char *)&(table[sst_index]), sizeof(table[0]),
-    //                     sizeof(table[0]));
-    //                 // update qp_num_to_index
-    //                 qp_num_to_index[res_vec[sst_index].get()->qp->qp_num] =
-    //                     sst_index;
-    //             }
-    //         }
-
-//         // create the reader and the detector thread
-//         thread reader(&SST::read, this);
-//         thread detector(&SST::detect, this);
-//         background_threads.push_back(std::move(reader));
-//         background_threads.push_back(std::move(detector));
-
-//         cout << "Initialized SST and Started Threads" << endl;
-//     } else {
-//         // initialize each element of res_vec
-//         unsigned int node_rank, sst_index;
-//         for(auto const &rank_index : members_by_rank) {
-//             std::tie(node_rank, sst_index) = rank_index;
-//             if(sst_index != member_index) {
-//                 if(row_is_frozen[sst_index]) {
-//                     continue;
-//                 }
-//                 // exchange lkey and addr of the table via tcp for enabling rdma
-//                 // writes
-//                 res_vec[sst_index] = std::make_unique<resources>(
-//                     node_rank, (char *)&(table[sst_index]),
-//                     (char *)&(table[member_index]), sizeof(table[0]),
-//                     sizeof(table[0]));
-//                 // update qp_num_to_index
-//                 qp_num_to_index[res_vec[sst_index].get()->qp->qp_num] =
-//                     sst_index;
-//             }
-//         }
-
-//         thread detector(&SST::detect, this);
-//         background_threads.push_back(std::move(detector));
-
-//         cout << "Initialized SST and Started Threads" << endl;
-//     }
 }
 
 /**
