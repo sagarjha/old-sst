@@ -20,7 +20,7 @@ SST<Row, ImplMode, NameEnum, RowExtras>::SST(
     const vector<uint32_t> &_members, uint32_t my_node_id,
     std::pair<decltype(named_functions), std::vector<row_predicate_updater_t>>
         row_preds,
-    failure_upcall_t _failure_upcall, std::vector<bool> already_failed,
+    failure_upcall_t _failure_upcall, std::vector<char> already_failed,
     bool start_predicate_thread)
     : named_functions(row_preds.first),
       members(_members.size()),
@@ -43,7 +43,14 @@ SST<Row, ImplMode, NameEnum, RowExtras>::SST(
 
     if (already_failed.size()) {
       assert(already_failed.size() == num_members);
-      row_is_frozen = already_failed;
+      for (char c : already_failed) {
+	if (c) {
+	  row_is_frozen.push_back(true);
+	}
+	else {
+	  row_is_frozen.push_back(false);
+	}
+      }
     }
     else {
       row_is_frozen.resize(num_members, false);

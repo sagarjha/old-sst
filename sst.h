@@ -238,7 +238,7 @@ public:
      * this code is running.
      */
     SST(const vector<uint32_t> &_members, uint32_t my_node_id,
-        failure_upcall_t failure_upcall = nullptr, std::vector<bool> already_failed = {},
+        failure_upcall_t failure_upcall = nullptr, std::vector<char> already_failed = {},
         bool start_predicate_thread = true)
         : SST(_members, my_node_id,
               std::pair<std::tuple<>, std::vector<row_predicate_updater_t>>{},
@@ -247,7 +247,7 @@ public:
     template <typename ExtensionList, typename... RestFunctions>
     SST(const vector<uint32_t> &_members, uint32_t my_node_id,
         failure_upcall_t failure_upcall, bool start_predicate_thread,
-        std::vector<bool> already_failed,
+        std::vector<char> already_failed,
         const PredicateBuilder<Row, ExtensionList> &pb,
         RestFunctions... named_funs)
         : SST(_members, my_node_id, constructor_helper<0>(pb, named_funs...),
@@ -273,7 +273,7 @@ public:
         std::pair<decltype(named_functions),
                   std::vector<row_predicate_updater_t>>,
         failure_upcall_t _failure_upcall = nullptr,
-        std::vector<bool> already_failed = {},
+        std::vector<char> already_failed = {},
         bool start_predicate_thread = true);
     SST(const SST &) = delete;
     virtual ~SST();
