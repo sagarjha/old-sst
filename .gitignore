@@ -1,3 +1,4 @@
+*~
 libsst.a
 CMakeCache.txt
 Makefile
@@ -42,12 +43,10 @@ routing/router_experiment
 /experiments/data_remote_read_bw.csv
 /experiments/data_remote_read_poll.csv
 /experiments/data_remote_read_read.csv
-/experiments/named_predicate_test.cpp~
 /experiments/script_copy.sh
 /script_copy.sh
-/script_copy.sh~
 /libsst.so
 /experiments/test_failure_handling
 /experiments/count_write_script.sh
-/experiments/multicast.cpp~
 /experiments/multicast
+/experiments/base_performance_test
