@@ -108,5 +108,8 @@ test_failure_handling : test_failure_handling.cpp $(src) $(hdr) $(sst_hdr)
 multicast : multicast.cpp multicast.h ../../max_members.h $(src) $(hdr) $(sst_hdr)
 	c++ -std=c++14 multicast.cpp ../../experiments/aggregate_bandwidth.cpp $(src) -o multicast $(options)
 
+time_skew_experiment : time_skew_experiment.cpp $(src) $(hdr) $(sst_hdr)
+	c++ -std=c++14 time_skew_experiment.cpp $(src) -o time_skew_experiment $(options)
+
 clean :
 	rm -f $(binaries) *~
