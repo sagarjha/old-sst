@@ -2,7 +2,7 @@ src=../verbs.cpp ../tcp.cpp statistics.cpp timing.cpp
 hdr=../verbs.h ../tcp.h statistics.h timing.h
 sst_hdr=../sst.h ../sst_impl.h ../predicates.h ../named_function.h ../args-finder.hpp ../combinators.h ../combinator_utils.h ../NamedRowPredicates.h ../util.h
 options=-lrdmacm -libverbs -lrt -lpthread -O1 -g -Wall -Wno-unused-function -Wno-unused-variable -fno-omit-frame-pointer -Wno-unused-but-set-variable -Wno-unused-result
-binaries=test test_write two_connections raw_rdma_read raw_rdma_write remote_read remote_write read_avg_time write_avg_time read_write_avg_time sequential_remote_read sequential_remote_write sequential_remote_read_write thread_sequential_remote_read parallel_post_poll random_thread_reads atomicity_test strcpy_atomicity_test integer_atomicity_test memcpy_atomicity_test simple_predicate count_read count_write predicates_per_second predicate_row_scaling_read predicate_row_scaling_write row_size_scaling_write row_size_scaling_read average_load_pred token_passing named_predicate_test test_failure_handling multicast
+binaries=test test_write two_connections raw_rdma_read raw_rdma_write remote_read remote_write read_avg_time write_avg_time read_write_avg_time sequential_remote_read sequential_remote_write sequential_remote_read_write thread_sequential_remote_read parallel_post_poll random_thread_reads atomicity_test strcpy_atomicity_test integer_atomicity_test memcpy_atomicity_test simple_predicate count_read count_write predicates_per_second predicate_row_scaling_read predicate_row_scaling_write row_size_scaling_write row_size_scaling_read average_load_pred token_passing named_predicate_test test_failure_handling multicast_throughput multicast_latency time_skew_experiment
 
 all : $(binaries)
 
@@ -105,8 +105,11 @@ named_predicate_test : named_predicate_test.cpp $(src) $(hdr) $(sst_hdr)
 test_failure_handling : test_failure_handling.cpp $(src) $(hdr) $(sst_hdr)
 	c++ -std=c++14 test_failure_handling.cpp $(src) -o test_failure_handling $(options)
 
-multicast : multicast.cpp multicast.h ../../max_members.h $(src) $(hdr) $(sst_hdr)
-	c++ -std=c++14 multicast.cpp ../../experiments/aggregate_bandwidth.cpp $(src) -o multicast $(options)
+multicast_throughput : multicast_throughput.cpp multicast.h ../../max_members.h $(src) $(hdr) $(sst_hdr)
+	c++ -std=c++14 multicast_throughput.cpp ../../experiments/aggregate_bandwidth.cpp $(src) -o multicast_throughput $(options)
+
+multicast_latency : multicast_latency.cpp multicast.h ../../max_members.h $(src) $(hdr) $(sst_hdr)
+	c++ -std=c++14 multicast_latency.cpp $(src) -o multicast_latency $(options)
 
 time_skew_experiment : time_skew_experiment.cpp $(src) $(hdr) $(sst_hdr)
 	c++ -std=c++14 time_skew_experiment.cpp $(src) -o time_skew_experiment $(options)
