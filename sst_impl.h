@@ -226,7 +226,9 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::freeze(int index) {
     }
     num_frozen++;
     res_vec[index].reset();
-    failure_upcall(members[index]);
+    if(failure_upcall) {
+        failure_upcall(members[index]);
+    }
 }
 
 /**
@@ -497,7 +499,7 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::put(long long int offset,
         int result = p.second;
         if(result == 1) {
             int index = qp_num_to_index[qp_num];
-            assert(posted_write_to[index]);
+            // assert(posted_write_to[index]);
             polled_successfully_from[index] = true;
         } else if(result == -1) {
             int index = qp_num_to_index[qp_num];

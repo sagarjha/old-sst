@@ -111,7 +111,7 @@ multicast_throughput : multicast_throughput.cpp multicast.h ../../max_members.h 
 multicast_latency : multicast_latency.cpp multicast.h ../../max_members.h $(src) $(hdr) $(sst_hdr)
 	c++ -std=c++14 multicast_latency.cpp $(src) -o multicast_latency $(options)
 
-time_skew_experiment : time_skew_experiment.cpp $(src) $(hdr) $(sst_hdr)
+time_skew_experiment : time_skew_experiment.cpp time_skew.h $(src) $(hdr) $(sst_hdr)
 	c++ -std=c++14 time_skew_experiment.cpp $(src) -o time_skew_experiment $(options)
 
 clean :
