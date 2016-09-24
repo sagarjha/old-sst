@@ -114,5 +114,8 @@ multicast_latency : multicast_latency.cpp multicast.h ../../max_members.h $(src)
 time_skew_experiment : time_skew_experiment.cpp time_skew.h $(src) $(hdr) $(sst_hdr)
 	c++ -std=c++14 time_skew_experiment.cpp $(src) -o time_skew_experiment $(options)
 
+selective_put_test : selective_put_test.cpp $(src) $(hdr) $(sst_hdr)
+	c++ -std=c++14 selective_put_test.cpp $(src) -o selective_put_test $(options)
+
 clean :
 	rm -f $(binaries) *~

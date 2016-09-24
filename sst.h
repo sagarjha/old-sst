@@ -295,8 +295,14 @@ public:
     std::unique_ptr<SST_Snapshot> get_snapshot() const;
     /** Writes the local row to all remote nodes. */
     void put();
+    /** Writes the local row to some of the remote nodes. */
+    void put(vector<uint32_t> receiver_ranks);
     /** Writes a contiguous subset of the local row to all remote nodes. */
     void put(long long int offset, long long int size);
+    /** Writes a contiguous subset of the local row to some of the remote nodes.
+     */
+    void put(vector<uint32_t> receiver_ranks, long long int offset,
+             long long int size);
     /** Does a TCP sync with each member of the SST. */
     void sync_with_members() const;
     /** Marks a row as frozen, so it will no longer update, and its

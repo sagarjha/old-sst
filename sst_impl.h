@@ -8,6 +8,7 @@
 #include <utility>
 #include <cstring>
 #include <mutex>
+#include <numeric>
 
 #include "sst.h"
 #include "predicates.h"
@@ -41,19 +42,17 @@ SST<Row, ImplMode, NameEnum, RowExtras>::SST(
         }
     }
 
-    if (already_failed.size()) {
-      assert(already_failed.size() == num_members);
-      for (char c : already_failed) {
-	if (c) {
-	  row_is_frozen.push_back(true);
-	}
-	else {
-	  row_is_frozen.push_back(false);
-	}
-      }
-    }
-    else {
-      row_is_frozen.resize(num_members, false);
+    if(already_failed.size()) {
+        assert(already_failed.size() == num_members);
+        for(char c : already_failed) {
+            if(c) {
+                row_is_frozen.push_back(true);
+            } else {
+                row_is_frozen.push_back(false);
+            }
+        }
+    } else {
+        row_is_frozen.resize(num_members, false);
     }
 
     // sort members descending by node rank, while keeping track of their
@@ -456,38 +455,55 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::detect() {
  */
 template <class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::put() {
-  put(0, sizeof(table[0]));
+    vector<uint32_t> indices(num_members);
+    iota(indices.begin(), indices.end(), 0);
+    put(indices, 0, sizeof(table[0]));
 }
 
-/**
- * This can be used to write only a single state variable to the remote nodes,
- * instead of the enitre row, if only that variable has changed. To get the
- * correct offset and size, use `offsetof` and `sizeof`. For example, if the
- * Row type is `RowType` and the variable to write is RowType::item, use
- *
- *     sst_instance.put(offsetof(RowType, item), sizeof(item));
- *
- * If this SST is in Reads mode, this function does nothing.
- *
- * @param offset The offset, within the Row structure, of the region of the
- * row to write
- * @param size The number of bytes to write, starting at the offset.
- */
+template <class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+void SST<Row, ImplMode, NameEnum, RowExtras>::put(
+    vector<uint32_t> receiver_ranks) {
+    put(receiver_ranks, 0, sizeof(table[0]));
+}
+
 template <class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
 void SST<Row, ImplMode, NameEnum, RowExtras>::put(long long int offset,
                                                   long long int size) {
+    vector<uint32_t> indices(num_members);
+    iota(indices.begin(), indices.end(), 0);
+    put(indices, offset, size);
+}
+
+/**
+* This can be used to write only a single state variable to the remote nodes,
+* instead of the enitre row, if only that variable has changed. To get the
+* correct offset and size, use `offsetof` and `sizeof`. For example, if the
+* Row type is `RowType` and the variable to write is RowType::item, use
+*
+*     sst_instance.put(offsetof(RowType, item), sizeof(item));
+*
+* If this SST is in Reads mode, this function does nothing.
+*
+* @param offset The offset, within the Row structure, of the region of the
+* row to write
+* @param size The number of bytes to write, starting at the offset.
+*/
+template <class Row, Mode ImplMode, typename NameEnum, typename RowExtras>
+void SST<Row, ImplMode, NameEnum, RowExtras>::put(
+    vector<uint32_t> receiver_ranks, long long int offset, long long int size) {
     assert(ImplMode == Mode::Writes);
     vector<bool> posted_write_to(num_members, false);
     uint num_writes_posted = 0;
-    for(unsigned int index = 0; index < num_members; ++index) {
+    // for(unsigned int index = 0; index < num_members; ++index) {
+    for(auto index : receiver_ranks) {
         // don't write to yourself or a frozen row
         if(index == member_index || row_is_frozen[index]) {
             continue;
         }
         // perform a remote RDMA write on the owner of the row
         res_vec[index]->post_remote_write(offset, size);
-	posted_write_to[index] = true;
-	num_writes_posted++;
+        posted_write_to[index] = true;
+        num_writes_posted++;
     }
     // track which nodes haven't failed yet
     vector<bool> polled_successfully_from(num_members, false);
@@ -512,27 +528,29 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::put(long long int offset,
         } else if(result == 0) {
             // find some node that hasn't been polled yet and report it
             for(unsigned int index2 = 0; index2 < num_members; ++index2) {
-                if(!posted_write_to[index2] || polled_successfully_from[index2]) {
+                if(!posted_write_to[index2] ||
+                   polled_successfully_from[index2]) {
                     continue;
                 }
-		// if (index2 != 0) {
-		//   cout << "Number of writes posted = " << remote_writes_posted << endl;
-		//   cout << "num_frozen = " << num_frozen << endl;
-		  
-		//   cout << "Writes posted to " << endl;
-		//   for (auto n : writes_posted_to) {
-		//     cout << n <<  " ";
-		//   }
-		//   cout << endl;
+                // if (index2 != 0) {
+                //   cout << "Number of writes posted = " <<
+                //   remote_writes_posted << endl;
+                //   cout << "num_frozen = " << num_frozen << endl;
 
-		//   cout << "Polled successfully from " << endl;
-		//   for (uint i = 0; i < num_members; ++i) {
-		//     if (polled_successfully[i]) {
-		//       cout << members[i] << " ";
-		//     }
-		//   }
-		//   cout << endl;
-		// }
+                //   cout << "Writes posted to " << endl;
+                //   for (auto n : writes_posted_to) {
+                //     cout << n <<  " ";
+                //   }
+                //   cout << endl;
+
+                //   cout << "Polled successfully from " << endl;
+                //   for (uint i = 0; i < num_members; ++i) {
+                //     if (polled_successfully[i]) {
+                //       cout << members[i] << " ";
+                //     }
+                //   }
+                //   cout << endl;
+                // }
                 cout << "Reporting failure on row " << index2
                      << " even though it didn't fail directly" << endl;
                 freeze(index2);

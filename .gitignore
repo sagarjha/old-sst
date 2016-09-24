@@ -53,3 +53,4 @@ routing/router_experiment
 /experiments/time_skew_experiment
 /experiments/multicast_latency
 /experiments/time_skew_results
+/experiments/selective_put_test
