@@ -21,13 +21,14 @@
 #include <netdb.h>
 #include <errno.h>
 
-#include "tcp.h"
 #include "verbs.h"
+#include "../connection_manager.h"
 
-using std::string;
 using std::cout;
 using std::cerr;
 using std::endl;
+using std::map;
+using std::string;
 
 #define MSG "SEND operation      "
 #define RDMAMSGR "RDMA read operation "
@@ -60,6 +61,9 @@ const char *dev_name = NULL;
 int ib_port = 1;
 /** GID index to use. */
 int gid_idx = 0;
+
+static const int port = 22549;
+tcp::tcp_connections *sst_connections;
 
 //  unsigned int max_time_to_completion = 0;
 
@@ -257,19 +261,12 @@ void resources::set_qp_ready_to_send() {
  * `modify_qp_*` methods in the process.
  */
 void resources::connect_qp() {
-    // get sockets required to share qp data
-    int sock = tcp::get_socket(remote_index);
-
     // local connection data
     struct cm_con_data_t local_con_data;
     // remote connection data. Obtained via TCP
     struct cm_con_data_t remote_con_data;
     // this is used to ensure that host byte order is correct at each node
     struct cm_con_data_t tmp_con_data;
-
-    // just a dummy character
-    char temp_char;
-    char tQ[2] = {'Q', 0};
 
     union ibv_gid my_gid;
     if(gid_idx >= 0) {
@@ -286,10 +283,9 @@ void resources::connect_qp() {
     local_con_data.qp_num = htonl(qp->qp_num);
     local_con_data.lid = htons(g_res->port_attr.lid);
     memcpy(local_con_data.gid, &my_gid, 16);
-    int sync_ret_code =
-        tcp::sock_sync_data(sock, sizeof(struct cm_con_data_t),
-                            (char *)&local_con_data, (char *)&tmp_con_data);
-    check_for_error(sync_ret_code >= 0,
+    bool success =
+        sst_connections->exchange(remote_index, local_con_data, tmp_con_data);
+    check_for_error(success,
                     "Could not exchange qp data in connect_qp");
     remote_con_data.addr = ntohll(tmp_con_data.addr);
     remote_con_data.rkey = ntohl(tmp_con_data.rkey);
@@ -311,9 +307,9 @@ void resources::connect_qp() {
     // sync to make sure that both sides are in states that they can connect to
     // prevent packet loss
     // just send a dummy char back and forth
-    sync_ret_code = tcp::sock_sync_data(sock, 1, tQ, &temp_char);
+    success = sync(remote_index);
     check_for_error(
-        !sync_ret_code,
+		    success,
         "Could not sync in connect_qp after qp transition to RTS state");
 }
 
@@ -522,10 +518,20 @@ void resources_create() {
 }
 
 /**
+*@param r_index The node rank of the node to exchange data with.
+*/
+bool sync(uint32_t r_index) {
+    int s=0, t=0;
+    return sst_connections->exchange(r_index, s, t);
+}
+
+/**
  * @details
  * This must be called before creating or using any SST instance.
  */
-void verbs_initialize() {
+  void verbs_initialize(uint32_t node_rank, const map<uint32_t, string> &ip_addrs) {
+    sst_connections = new tcp::tcp_connections(node_rank, ip_addrs, port);
+
     // init all of the resources, so cleanup will be easy
     resources_init();
     // create resources before using them

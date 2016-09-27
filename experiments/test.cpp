@@ -2,18 +2,13 @@
 #include <map>
 
 #include "../verbs.h"
-#include "../tcp.h"
 
 using namespace std;
 using namespace sst;
-using namespace sst::tcp;
 
 void initialize(int node_rank, const map <uint32_t, string> & ip_addrs) {
-  // initialize tcp connections
-  tcp_initialize(node_rank, ip_addrs);
-  
   // initialize the rdma resources
-  verbs_initialize();
+  verbs_initialize(node_rank, ip_addrs);
 }
 
 int main () {
@@ -55,10 +50,7 @@ int main () {
   verbs_poll_completion();
   cout << "Buffer read is : " << read_buf << endl;
   
-  // sync before destroying resources
-  char  temp_char; 
-  char tQ[2] = {'Q', 0};
-  sock_sync_data(get_socket (r_index), 1, tQ, &temp_char);
+  sync(r_index);
 
   // destroy resources
   delete(res);

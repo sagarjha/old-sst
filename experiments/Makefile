@@ -1,5 +1,5 @@
-src=../verbs.cpp ../tcp.cpp statistics.cpp timing.cpp
-hdr=../verbs.h ../tcp.h statistics.h timing.h
+src=../verbs.cpp ../../connection_manager.cpp ../../rdmc/connection.cpp statistics.cpp timing.cpp
+hdr=../verbs.h statistics.h timing.h
 sst_hdr=../sst.h ../sst_impl.h ../predicates.h ../named_function.h ../args-finder.hpp ../combinators.h ../combinator_utils.h ../NamedRowPredicates.h ../util.h
 options=-lrdmacm -libverbs -lrt -lpthread -O1 -g -Wall -Wno-unused-function -Wno-unused-variable -fno-omit-frame-pointer -Wno-unused-but-set-variable -Wno-unused-result
 binaries=test test_write two_connections raw_rdma_read raw_rdma_write remote_read remote_write read_avg_time write_avg_time read_write_avg_time sequential_remote_read sequential_remote_write sequential_remote_read_write thread_sequential_remote_read parallel_post_poll random_thread_reads atomicity_test strcpy_atomicity_test integer_atomicity_test memcpy_atomicity_test simple_predicate count_read count_write predicates_per_second predicate_row_scaling_read predicate_row_scaling_write row_size_scaling_write row_size_scaling_read average_load_pred token_passing named_predicate_test test_failure_handling multicast_throughput multicast_latency time_skew_experiment

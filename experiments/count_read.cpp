@@ -6,7 +6,6 @@
 #include <cstdlib>
 
 #include "../sst.h"
-#include "../tcp.h"
 //Since all SST instances are named sst, we can use this convenient hack
 #define LOCAL sst.get_local_index()
 
@@ -19,18 +18,9 @@ using std::endl;
 using std::ofstream;
 
 using namespace sst;
-using sst::tcp::tcp_initialize;
-using sst::tcp::sync;
-
 struct TestRow {
   int a;
 };
-
-namespace sst {
-namespace tcp {
-extern int port;
-}
-}
 
 int main () {
   // input number of nodes and the local node id
@@ -43,14 +33,8 @@ int main () {
     cin >> ip_addrs[i];
   }
   
-  // Should have been done earlier. LOL.
-  cin >> tcp::port;
-  
-  // initialize tcp connections
-  tcp_initialize(node_rank, ip_addrs);
-  
   // initialize the rdma resources
-  verbs_initialize();
+  verbs_initialize(node_rank, ip_addrs);
   
   // form a group with a subset of all the nodes
   vector <uint32_t> members (num_nodes);

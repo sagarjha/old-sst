@@ -12,7 +12,6 @@
 
 #include "sst.h"
 #include "predicates.h"
-#include "tcp.h"
 
 namespace sst {
 
@@ -243,7 +242,7 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::sync_with_members() const {
     for(auto const &rank_index : members_by_rank) {
         std::tie(node_rank, sst_index) = rank_index;
         if(sst_index != member_index && !row_is_frozen[sst_index]) {
-            tcp::sync(node_rank);
+            sync(node_rank);
         }
     }
 }
@@ -494,7 +493,6 @@ void SST<Row, ImplMode, NameEnum, RowExtras>::put(
     assert(ImplMode == Mode::Writes);
     vector<bool> posted_write_to(num_members, false);
     uint num_writes_posted = 0;
-    // for(unsigned int index = 0; index < num_members; ++index) {
     for(auto index : receiver_ranks) {
         // don't write to yourself or a frozen row
         if(index == member_index || row_is_frozen[index]) {

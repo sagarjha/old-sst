@@ -7,6 +7,8 @@
  * including the Resources class and global setup functions.
  */
 
+#include <map>
+
 #include <infiniband/verbs.h>
 
 namespace sst {
@@ -79,8 +81,10 @@ public:
     void post_remote_write(long long int offset, long long int size);
 };
 
+bool sync(uint32_t r_index);
 /** Initializes the global verbs resources. */
-void verbs_initialize();
+void verbs_initialize(uint32_t node_rank,
+                      const std::map<uint32_t, std::string> &ip_addrs);
 /** Polls for completion of a single posted remote read. */
 std::pair<int, int> verbs_poll_completion();
 /** Destroys the global verbs resources. */
