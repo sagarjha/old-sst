@@ -517,11 +517,15 @@ void resources_create() {
                         std::to_string(errno));
 }
 
+bool add_node(uint32_t new_id, const string new_ip_addr) {
+    return sst_connections->add_node(new_id, new_ip_addr);
+}
+
 /**
 *@param r_index The node rank of the node to exchange data with.
 */
 bool sync(uint32_t r_index) {
-    int s=0, t=0;
+    int s = 0, t = 0;
     return sst_connections->exchange(r_index, s, t);
 }
 
@@ -529,7 +533,7 @@ bool sync(uint32_t r_index) {
  * @details
  * This must be called before creating or using any SST instance.
  */
-  void verbs_initialize(uint32_t node_rank, const map<uint32_t, string> &ip_addrs) {
+  void verbs_initialize(const map<uint32_t, string> &ip_addrs, uint32_t node_rank) {
     sst_connections = new tcp::tcp_connections(node_rank, ip_addrs, port);
 
     // init all of the resources, so cleanup will be easy
